@@ -1,0 +1,27 @@
+[package]
+name = "selenite-pro/mafiagame"
+version = "0.1.0"
+registry = "https://github.com/UpliftGames/wally-index"
+realm = "shared"
+
+[server-dependencies]
+ProfileService = "brittonfischer/profileservice@2.1.5"
+# Cmdr = "evaera/cmdr@1.12.0"
+
+[dependencies]
+ReactSpring = "chriscerie/react-spring@2.0.0"
+ReactRoblox = "jsdotlua/react-roblox@17.1.0"
+React = "jsdotlua/react@17.1.0"
+debugLoggerUtil = "bubshayz/debugloggerutil@1.1.2"
+Component = "bubshayz/component@1.6.0"
+network = "bubshayz/network@8.1.1"
+Signal = "stravant/goodsignal@0.2.1"
+# contextActionServiceUtil = "bubshurb/contextactionserviceutil@1.0.0"
+# Zone = "shadowengineer/zoneplus@0.1.1"
+loader = "sleitnick/loader@2.0.0"
+Promise = "evaera/promise@4.0.0"
+Trove = "sleitnick/trove@1.1.0"
+Sift = "csqrl/sift@0.0.8"
+# Icon = "timlaz/topbarplus@2.9.1"
+# Input = "sleitnick/input@2.3.0"
+# rain = "bubshayz/rain@1.4.0"

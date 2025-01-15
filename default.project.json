@@ -1,0 +1,49 @@
+{
+    "name": "velcro",
+    "tree": {
+        "$className": "DataModel",
+        "ReplicatedFirst": {
+            "$className": "ReplicatedFirst",
+            "client": {
+                "$path": "src/client/startup/early"
+            },
+            "$ignoreUnknownInstances": true
+        },
+        "ReplicatedStorage": {
+            "$className": "ReplicatedStorage",
+            "client": {
+                "$path": "src/client/core"
+            },
+            "shared": {
+                "$path": "src/shared"
+            },
+            "sharedPackages": {
+                "$path": "Packages"
+            },
+            "$ignoreUnknownInstances": true
+        },
+        "ServerScriptService": {
+            "$className": "ServerScriptService",
+            "$path": "src/server/startup/early",
+            "$ignoreUnknownInstances": true
+        },
+        "ServerStorage": {
+            "$className": "ServerStorage",
+            "server": {
+                "$path": "src/server/core"
+            },
+            "serverPackages": {
+                "$path": "ServerPackages"
+            },
+            "$ignoreUnknownInstances": true
+        },
+        "StarterPlayer": {
+            "$className": "StarterPlayer",
+            "StarterPlayerScripts": {
+                "$className": "StarterPlayerScripts",
+                "$path": "src/client/startup/late",
+                "$ignoreUnknownInstances": true
+            }
+        }
+    }
+}

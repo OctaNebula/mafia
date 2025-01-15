@@ -1,0 +1,30 @@
+local footstepSounds = {
+    ForceField = "rbxassetid://329997777",
+    Brick = "rbxassetid://178190837",
+    Climb = "rbxassetid://145180175",
+    Cobblestone = "rbxassetid://178190837",
+    Concrete = "rbxassetid://277067660",
+    CorrodedMetal = "rbxassetid://177940974",
+    DiamondPlate = "rbxassetid://177940974",
+    Fabric = "rbxassetid://133705377",
+    Foil = "rbxassetid://178190837",
+    Glass = "rbxassetid://178190837",
+    Granite = "rbxassetid://178054124",
+    Grass = "rbxassetid://177940963",
+    Ice = "rbxassetid://178190837",
+    Marble = "rbxassetid://178190837",
+    Metal = "rbxassetid://177940974",
+    Neon = "rbxassetid://177940974",
+    Pebble = "rbxassetid://178190837",
+    Plastic = "rbxassetid://177940974",
+    Sand = "rbxassetid://212011266",
+    Slate = "rbxassetid://178054124",
+    SmoothPlastic = "rbxassetid://178190837",
+    Snow = "rbxassetid://1664205910",
+    Wood = "rbxassetid://177940988",
+    WoodPlanks = "rbxassetid://211987063",
+    Air = "rbxassetid://329997777",
+    CrackedLava = "rbxassetid://177940974"
+}
+
+return footstepSounds

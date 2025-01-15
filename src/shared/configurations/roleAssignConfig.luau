@@ -1,0 +1,5 @@
+local roleAssignConfig = {
+    
+}
+
+return roleAssignConfig
