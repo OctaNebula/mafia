@@ -1,0 +1,11 @@
+# Project place file
+/uno.rbxlx
+
+# Roblox Studio lock files
+/*.rbxlx.lock
+/*.rbxl.lock
+
+*.lock
+
+Packages
+ServerPackages
