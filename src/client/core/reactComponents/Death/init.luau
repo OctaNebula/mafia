@@ -71,7 +71,7 @@ local function Death()
     end
 
     React.useEffect(function()
-        gameService.playerDied:connect(playDeathCutscene)
+        gameService.playDeathCutscene:connect(playDeathCutscene)
     end, {})
 
     return e("Frame", {

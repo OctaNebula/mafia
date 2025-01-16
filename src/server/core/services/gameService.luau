@@ -18,7 +18,7 @@ local Maps = ServerStorage:WaitForChild("MAPS"):GetChildren()
 
 local gameService = {
     client = {
-        playerDied = network.Server.RemoteSignal.new(),
+        playDeathCutscene = network.Server.RemoteSignal.new(),
         explainRules = network.Server.RemoteSignal.new(),
         introCompleted = network.Server.RemoteSignal.new(),
         skipIntro = network.Server.RemoteSignal.new(),
@@ -85,7 +85,7 @@ stuff done with elaborations in top down chronological order (DD/MM/YYYY):
         AlphaWarning UI converted
             it's literally just text
         Death UI converted
-            has working animations, which is also connected to playerDied event in gameService
+            has working animations, which is also connected to playDeathCutscene event in gameService
     08/01/2025:
         Modified uiController to allow for props to be changed via a signal
         Implemented Fade and WitchTimer
