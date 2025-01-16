@@ -540,8 +540,8 @@ function gameService.startGame()
                     player who died
                     "[Player Name] died tonight." (3 seconds)
                     "Cause of Death: [Gunshot/Knife Wound]" (3 seconds)
-                    "Found by: [Player Name]" (3 seconds) (If the body wasn"t found by anyone, it will just say "No
-                    one found the body.")
+                    "Found by: [Player Name]" (3 seconds) (If the body wasn't found by anyone, it will just say "No
+                    one found the body.") (also no cutscene if nobody found it)
 
                 clean up
                     fade to black
@@ -549,6 +549,10 @@ function gameService.startGame()
                 -- entry actions
                 local someoneDied = false
                 gameService.client.lightsToggled:set(true)
+                gameService.client.toggleAudio:fire({
+                    sound = SoundService.whoDied,
+                    playing = true
+                })
                 if not someoneDied then
                     continue
                 end
