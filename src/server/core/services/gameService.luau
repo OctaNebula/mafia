@@ -146,6 +146,8 @@ sessions (total of 16 hours and 30 minutes as of 12/01/2025):
         pointing and head looking stuff
     21/01/2025 - 2 hours
         voting phase
+    22/01/2025 - 2 hours
+        finished pointing head and arm stuff, also added ragdolling
 
 stuff done with elaborations in top down chronological order (DD/MM/YYYY):
     02/01/2025:
