@@ -10,13 +10,13 @@ local exampleController = {}
 
 -- Modules are given a start method that is run.
 function exampleController.start()
-    -- Get events in the service client table
-    exampleService.exampleEvent:connect(function()
-        print("Got example event.")
-    end)
+	-- Get events in the service client table
+	exampleService.exampleEvent:connect(function()
+		print("Got example event.")
+	end)
 
-    -- Run methods in service that are in the client table
-    -- print(exampleService.exampleMethod())
+	-- Run methods in service that are in the client table
+	-- print(exampleService.exampleMethod())
 end
 
 return exampleController

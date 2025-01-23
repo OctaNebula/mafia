@@ -1,5 +1,3 @@
-local roleAssignConfig = {
-    
-}
+local roleAssignConfig = {}
 
 return roleAssignConfig

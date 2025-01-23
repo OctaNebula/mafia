@@ -1,0 +1,3 @@
+local mafia = {}
+
+return mafia

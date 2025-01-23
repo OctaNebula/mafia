@@ -14,16 +14,20 @@ function threedify.Make3D(v)
 		part.Name = v.Name .. "Depth"
 		part.Parent = model
 		local range = v:GetAttribute("range")
-		part.CFrame = v.CFrame * CFrame.new(0, 0, range*i)
-		part.SurfaceGui.ZOffset = v:GetAttribute("depth")+1-i
+		part.CFrame = v.CFrame * CFrame.new(0, 0, range * i)
+		part.SurfaceGui.ZOffset = v:GetAttribute("depth") + 1 - i
 		if v:GetAttribute("colortoblack") then
 			local basecolor = part.SurfaceGui.TextLabel.TextColor3
-			local lerpval = i/v:GetAttribute("depth")
+			local lerpval = i / v:GetAttribute("depth")
 
-			part.SurfaceGui.TextLabel.TextColor3 = Color3.new(lerp(basecolor.R, 0, lerpval), lerp(basecolor.G, 0, lerpval), lerp(basecolor.B, 0, lerpval))
+			part.SurfaceGui.TextLabel.TextColor3 = Color3.new(
+				lerp(basecolor.R, 0, lerpval),
+				lerp(basecolor.G, 0, lerpval),
+				lerp(basecolor.B, 0, lerpval)
+			)
 		end
 	end
-	
+
 	return model
 end
 

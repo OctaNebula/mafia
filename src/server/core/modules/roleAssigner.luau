@@ -71,7 +71,7 @@ end
 -- Converts configuration to internal format
 local function normalizeConfig(config)
 	local normalized = {
-		roles = {}
+		roles = {},
 	}
 
 	-- Process guaranteed roles
@@ -80,7 +80,7 @@ local function normalizeConfig(config)
 			minPlayers = count,
 			maxPlayers = count,
 			baseChance = 100,
-			isGuaranteed = true
+			isGuaranteed = true,
 		}
 	end
 
@@ -90,7 +90,7 @@ local function normalizeConfig(config)
 			minPlayers = 0,
 			maxPlayers = settings.maxPlayers,
 			baseChance = settings.baseChance * 100, -- Convert from decimal to percentage
-			isSpecial = true
+			isSpecial = true,
 		}
 	end
 
@@ -101,7 +101,7 @@ local function normalizeConfig(config)
 			maxPlayers = math.huge, -- No limit for default roles
 			baseChance = 100,
 			isDefault = true,
-			defaultPriority = index -- Lower means higher priority
+			defaultPriority = index, -- Lower means higher priority
 		}
 	end
 
@@ -130,19 +130,19 @@ local function getGuaranteedRoles(player, normalizedConfig)
 	-- First add guaranteed roles
 	for role, config in pairs(normalizedConfig.roles) do
 		if config.isGuaranteed and modifiers[role] == "GUARANTEED" then
-			table.insert(guaranteed, {role = role, priority = 1})
+			table.insert(guaranteed, { role = role, priority = 1 })
 		end
 	end
 
 	-- Then add special roles
 	for role, config in pairs(normalizedConfig.roles) do
 		if config.isSpecial and modifiers[role] == "GUARANTEED" then
-			table.insert(guaranteed, {role = role, priority = 2})
+			table.insert(guaranteed, { role = role, priority = 2 })
 		end
 	end
 
 	-- Sort by priority (guaranteed before special)
-	table.sort(guaranteed, function(a, b) 
+	table.sort(guaranteed, function(a, b)
 		return a.priority < b.priority
 	end)
 
@@ -169,7 +169,7 @@ function roleAssigner.getDefaultRoleProbabilities(config)
 			probabilities[roleName] = {
 				percentage = (roleWeight / totalWeight) * 100,
 				maxPlayers = roleConfig.maxPlayers,
-				baseChance = roleConfig.baseChance
+				baseChance = roleConfig.baseChance,
 			}
 		end
 	end
@@ -196,7 +196,7 @@ function roleAssigner.assignRoles(config, players)
 		if #guaranteedRoles > 0 then
 			table.insert(guaranteedPlayers, {
 				player = player,
-				roles = guaranteedRoles
+				roles = guaranteedRoles,
 			})
 		end
 	end
@@ -218,8 +218,13 @@ function roleAssigner.assignRoles(config, players)
 			-- Check if we can assign this role
 			if roleCounts[roleName] < roleConfig.maxPlayers then
 				-- For special roles, only create new slot if specifically guaranteed
-				if not roleConfig.isSpecial or 
-					(roleConfig.isSpecial and normalized.playerModifiers[player][roleName] == "GUARANTEED") then
+				if
+					not roleConfig.isSpecial
+					or (
+						roleConfig.isSpecial
+						and normalized.playerModifiers[player][roleName] == "GUARANTEED"
+					)
+				then
 					assignments[player] = roleName
 					roleCounts[roleName] = roleCounts[roleName] + 1
 					-- Remove from available players
@@ -283,7 +288,7 @@ function roleAssigner.assignRoles(config, players)
 			if roleConfig.isDefault then
 				table.insert(defaultRoles, {
 					name = roleName,
-					priority = roleConfig.defaultPriority
+					priority = roleConfig.defaultPriority,
 				})
 			end
 		end

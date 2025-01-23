@@ -3,9 +3,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local sharedPackages = ReplicatedStorage.sharedPackages
 local shared = ReplicatedStorage.shared
 
-local remoteComponentExtension = require(shared.componentExtensions.remoteComponent)
 local Component = require(sharedPackages.Component)
 local Trove = require(sharedPackages.Trove)
+local remoteComponentExtension = require(shared.componentExtensions.remoteComponent)
 
 local Balloon = Component.new({
 	tag = "Balloon",
