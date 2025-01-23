@@ -31,24 +31,11 @@ local function lerp(a, b, l)
 end
 
 function introController.start()
-	gameService.gameIntroCountdown:observe(function(timeLeft)
-		if typeof(timeLeft) == "number" then
-			uiController.setUIPropSignal:Fire("Topbar", {
-				initialText = `Game starting in: `,
-				targetText = `Game starting in: {timeLeft}`
-			})
-		elseif timeLeft == nil then
-			uiController.setUIPropSignal:Fire("Topbar", {})
-		end
-	end)
-
 	gameService.explainRules:connect(function(role)
 		introController.explainRulesCutscene(role)
 		local introCoro, introCleanUp = introController.mapIntroCutscene(role)
 
-		uiController.setUIPropSignal:Fire("SkipIntro", {
-			visible = true
-		})
+		uiController:setSkipIntroVisible(true)
 		
 		coroutine.resume(introCoro)
 
@@ -62,29 +49,19 @@ function introController.start()
 
 		introCleanUp()
 
-		uiController.setUIPropSignal:Fire("SkipIntro", {
-			visible = false
-		})
+		uiController:setSkipIntroVisible(false)
 
 		gameService.introCompleted:fireServer()
 
 		while gameService.gameStarted:get() == false do
-			uiController.setUIPropSignal:Fire("Topbar", {
-				targetText = `Waiting for players...`
-			})
+			uiController:setTopbarProps(`Waiting for players...`)
 			gameService.gameStarted.onUpdate:Wait()
 		end
-		uiController.setUIPropSignal:Fire("Topbar", {
-			targetText = ""
-		})
+		uiController:setTopbarProps()
 
 		workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
 
-		uiController.setUIPropSignal:Fire("Fade", {
-			transparency = 1,
-			duration = 1,
-			easing = ReactSpring.easings.easeInQuad
-		})
+		uiController:setFadeProps(1, 1, ReactSpring.easings.easeInQuad)
 	end)
 end
 
@@ -105,11 +82,7 @@ function introController.explainRulesCutscene(role: string)
     local CurveTween = TweenService:Create(currentCamera, TweenInfo.new(11, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {CFrame = camera1.CFrame})
 	local FOVTween = TweenService:Create(currentCamera, TweenInfo.new(10, Enum.EasingStyle.Back, Enum.EasingDirection.InOut), {FieldOfView = 55})
 
-	uiController.setUIPropSignal:Fire("Fade", {
-        transparency = 0,
-		duration = 1,
-		easing = ReactSpring.easings.easeOutQuad
-    })
+	uiController:setFadeProps(0, 1, ReactSpring.easings.easeOutQuad)
 
 	task.wait(1)
 
@@ -134,21 +107,13 @@ function introController.explainRulesCutscene(role: string)
 
 	SoundService.rolesSequence:Play()
 
-	uiController.setUIPropSignal:Fire("Fade", {
-        transparency = 1,
-		duration = 1,
-		easing = ReactSpring.easings.easeInQuad
-    })
+	uiController:setFadeProps(1, 1, ReactSpring.easings.easeInQuad)
 	CurveTween:Play()
 	FOVTween:Play()
 
 	task.wait(11)
 
-	uiController.setUIPropSignal:Fire("Fade", {
-        transparency = 0,
-		duration = 1,
-		easing = ReactSpring.easings.easeOutQuad
-    })
+	uiController:setFadeProps(0, 1, ReactSpring.easings.easeOutQuad)
 
     task.wait(1)
 
@@ -166,9 +131,7 @@ function introController.explainRulesWitch()
 	local camera1 = cameraPoints:WaitForChild("Camera1")
     local mouse = LocalPlayer:GetMouse()
 
-    uiController.setUIPropSignal:Fire("Fade", {
-        transparency = 0
-    })
+    uiController:setFadeProps(0, 1, ReactSpring.easings.easeOutQuad)
 
 	task.wait(1)
 
@@ -176,16 +139,9 @@ function introController.explainRulesWitch()
 	currentCamera.CFrame = camera1.CFrame
 	currentCamera.FieldOfView = 70
 
-    uiController.setUIPropSignal:Fire("Fade", {
-        transparency = 1,
-		duration = 1,
-		easing = ReactSpring.easings.easeInQuad
-    })
+    uiController:setFadeProps(1, 1, ReactSpring.easings.easeInQuad)
 
-    uiController.setUIPropSignal:Fire("WitchTimer", {
-        timeStarted = os.clock(),
-        timer = 11,
-    })
+	uiController:setWitchTimerProps(os.clock(), 11)
 
 	local connection = RunService.RenderStepped:Connect(function()
 		workspace.CurrentCamera.CFrame = camera1.CFrame
@@ -212,13 +168,9 @@ function introController.explainRulesWitch()
 	-- TODO: fireServer so the server knows which side the player has chosen
 	connection:Disconnect()
 
-    uiController.setUIPropSignal:Fire("WitchTimer", nil)
+	uiController:setWitchTimerProps()
 
-	uiController.setUIPropSignal:Fire("Fade", {
-        transparency = 0,
-		duration = 1,
-		easing = ReactSpring.easings.easeOutQuad
-    })
+	uiController:setFadeProps(0, 1, ReactSpring.easings.easeOutQuad)
 
 	currentCamera.FieldOfView = 70
 
@@ -233,19 +185,11 @@ function introController.animateCameraPoints(animationTime: number, currentCamer
 		workspace.CurrentCamera.CFrame = map.Cameras["Camera"..currentCameraIndex].CFrame
 		tweenCallback(TweenService:Create(workspace.CurrentCamera, TweenInfo.new(animationTime*2, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {CFrame = map.Cameras["Camera"..currentCameraIndex+1].CFrame}))
 
-		uiController.setUIPropSignal:Fire("Fade", {
-			transparency = 1,
-			duration = .5,
-			easing = ReactSpring.easings.easeInQuad
-		})
+		uiController:setFadeProps(1, .5, ReactSpring.easings.easeInQuad)
 	end
 	task.wait(animationTime-1.5)
 	if currentCameraIndex % 2 == 0 then
-		uiController.setUIPropSignal:Fire("Fade", {
-			transparency = 0,
-			duration = 1.5,
-			easing = ReactSpring.easings.easeOutQuad
-		})
+		uiController:setFadeProps(0, 1.5, ReactSpring.easings.easeOutQuad)
 	end
 	task.wait(1.5)
 end
@@ -266,15 +210,9 @@ function introController.mapIntroCutscene(role: string) -- TODO: get disguised/u
 	end
 
 	local function cleanUp()
-		uiController.setUIPropSignal:Fire("Topbar", {
-			targetText = ""
-		})
+		uiController:setTopbarProps()
 
-		uiController.setUIPropSignal:Fire("Fade", {
-			transparency = 0,
-			duration = 1,
-			easing = ReactSpring.easings.easeOutQuad
-		})
+		uiController:setFadeProps(0, 1, ReactSpring.easings.easeOutQuad)
 		TweenService:Create(explainRulesMusic, TweenInfo.new(1), {Volume = 0}):Play()
 		task.wait(1)
 		explainRulesMusic:Stop()
@@ -287,14 +225,9 @@ function introController.mapIntroCutscene(role: string) -- TODO: get disguised/u
 	local introCoro = coroutine.create(function()explainRulesMusic:Play()
 		addAndPlayTween(TweenService:Create(explainRulesMusic, TweenInfo.new(1), {Volume = .5}))
 
-		uiController.setUIPropSignal:Fire("Topbar", {
-			targetText = `Welcome to Mafia. This will be a X (disguised/undisguised) round.`
-		})
+		uiController:setTopbarProps(`Welcome to Mafia. This will be a X (disguised/undisguised) round.`)
 		task.wait(4)
-		uiController.setUIPropSignal:Fire("Topbar", {
-			targetText = `There are X Mafia(s) among us.`,
-			typewriterDelay = 0.035
-		})
+		uiController:setTopbarProps(`There are X Mafia(s) among us.`, nil, 0.035)
 
 		for index, descriptionInfo in roleDescription do
 			local text = descriptionInfo.text
@@ -303,19 +236,13 @@ function introController.mapIntroCutscene(role: string) -- TODO: get disguised/u
 
 			introController.animateCameraPoints(delay, index, addAndPlayTween)
 
-			uiController.setUIPropSignal:Fire("Topbar", {
-				targetText = text,
-				typewriterDelay = typewriterDelay
-			})
-
+			uiController:setTopbarProps(text, nil, typewriterDelay)
 			task.wait(typewriterDelay*#text)
 		end
 
 		task.wait(4)
 
-		uiController.setUIPropSignal:Fire("Topbar", {
-			targetText = "Good luck."
-		})
+		uiController:setTopbarProps(`Good luck.`)
 		task.wait(3)
 	end)
 
