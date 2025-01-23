@@ -1,8 +1,8 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local PhysicsService = game:GetService("PhysicsService")
 local ServerStorage = game:GetService("ServerStorage")
-local Players = game:GetService("Players")
 local SoundService = game:GetService("SoundService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
 
 local sharedPackages = ReplicatedStorage.sharedPackages
 local serverModules = ServerStorage.server.modules
@@ -33,13 +33,16 @@ local gameService = {
         votePlayer = network.Server.RemoteSignal.new(),
         skipVote = network.Server.RemoteSignal.new(),
 
+        -- unreliable client -> server
+        pointHead = network.Server.RemoteSignal.new(),
+        pointArm = network.Server.RemoteSignal.new(),
+
         -- intro properties
         introSkipped = network.Server.RemoteProperty.new(false),
         introSkippedInfo = network.Server.RemoteProperty.new({
             playersSkippedIntro = 0,
             participatingPlayers = 0
         }),
-        gameIntroCountdown = network.Server.RemoteProperty.new(nil),
         
         -- game states
         gameStarted = network.Server.RemoteProperty.new(false),
@@ -54,20 +57,47 @@ local gameService = {
 }
 
 local gameConfig = {
-    nightStartTimer = 15,
-    doctorReviveTimer = 10, -- unused
-    nightEndTimer = 15, -- unused
+    gameStartTimer = 30, -- 15
 
-    mafiaKillTimer = 90,
-    discussionTimer = 60,
-    skipVoteTimer = 20, -- unused
-    votingTimer = 30, -- unused
+    shouldPlayIntro = false,
+
+    nightStartTimer = 2, -- 15
+    mafiaKillTimer = 2, -- 90
+    doctorReviveTimer = 10, -- unused -- 10
+    nightEndTimer = 15, -- unused -- 15 -- time until the night ends after a mafia kill
+
+    discussionTimer = 2, -- 60
+    skipVoteTimer = 30, -- unused -- 20
+    votingTimer = 60, -- 30
 }
 
 function gameService.start()
-    PhysicsService:RegisterCollisionGroup("player")
-    PhysicsService:RegisterCollisionGroup("ghost")
-    PhysicsService:CollisionGroupSetCollidable("player", "ghost", false)
+    gameService.client.pointHead:connect(function(player, targetC0, lerpValue)
+        local character = player.Character
+        if not character then
+            return
+        end
+        character.Head.Neck.C0 = character.Head.Neck.C0:Lerp(targetC0, lerpValue)
+    end)
+
+    gameService.client.pointArm:connect(function(player, shoulderC0, elbowC0, lerpValue)
+        -- add sanity check, this should only be used for voting phase (use canVote) and flashlights(?)
+        -- need to add a arm reset thingy when it's not being used anymore
+        local character = player.Character
+        if not character then
+            return
+        end
+        local rightShoulder = character.RightUpperArm.RightShoulder
+        local rightElbow = character.RightLowerArm.RightElbow
+
+        rightShoulder.C0 = rightShoulder.C0:Lerp(shoulderC0, lerpValue)
+        rightElbow.C0 = rightElbow.C0:Lerp(elbowC0, lerpValue)
+        task.spawn(function()
+            task.wait()
+			rightShoulder.Transform = CFrame.new()
+			rightElbow.Transform = CFrame.new()
+        end)
+    end)
 
     -- testing code
     local gameStarted = false
@@ -75,11 +105,14 @@ function gameService.start()
         local allPlayers = Players:GetPlayers()
         if #allPlayers >= 3 and not gameStarted then
             gameStarted = true
-            for i = 20, 0, -1 do
-                gameService.client.gameIntroCountdown:set(i)
+            for i = gameConfig.gameStartTimer, 0, -1 do
+                gameService.client.setTopbarText:fireAllClients({
+                    targetText = `Game starting in: {i}`,
+                    initialText = string.sub(`Game starting in: {i}`, 1, -2)
+                })
                 task.wait(1)
             end
-            gameService.client.gameIntroCountdown:set(nil)
+            gameService.client.setTopbarText:fireAllClients()
             gameService.startGame()
         end
     end)
@@ -105,6 +138,14 @@ sessions (total of 16 hours and 30 minutes as of 12/01/2025):
         added skipping intro and a proper countdown
     16/01/2025 - 4 hours
         working on game loop
+    18/01/2025 - 2 hours
+        ui stuff
+    19/01/2025 - 2 hours
+        i forgot wtf i did
+    20/01/2025 - 2 hours
+        pointing and head looking stuff
+    21/01/2025 - 2 hours
+        voting phase
 
 stuff done with elaborations in top down chronological order (DD/MM/YYYY):
     02/01/2025:
@@ -271,16 +312,22 @@ local function countdownCoroutineInit(seconds, increment, callback, cleanup)
         for i = seconds, 0, -increment do
             currentSecond = i
             if callback then
-                callback(i)
+                task.spawn(callback, i)
             end
             task.wait(1)
+        end
+        if cleanup then
+            cleanup(false)
         end
     end)
     coroutine.resume(coro)
     return function()
+        if coroutine.status(coro) == "dead" then
+            return 0
+        end
         coroutine.close(coro)
         if cleanup then
-            cleanup()
+            cleanup(true)
         end
         return currentSecond
     end, finishedEvent
@@ -289,48 +336,24 @@ end
 local function getPlayers(allPlayersInfo, callback)
     local players = {}
     for userId, playerInfo in allPlayersInfo do
+        print(userId, playerInfo)
         if callback(userId, playerInfo) then
             table.insert(players, Players:GetPlayerByUserId(userId))
         end
     end
+    print(players)
     return players
 end
 
-function gameService.startGame()
-    gameService.client.introSkipped:set(false)
-    gameService.client.gameStarted:set(false)
-    gameService.client.introSkippedInfo:set({
-        playersSkippedIntro = 0,
-        participatingPlayers = 0
-    })
-
-    local spawnLocations = {}
-	local map = Maps[math.random(1, #Maps)]:Clone()
-	map = ServerStorage.MAPS.Library:Clone() -- test code for getting a specific map lol, should make a debug config instead
-    map.Name = "Map"
-    map.Parent = workspace
-
-    -- disable any seats found in maps
-	if map:FindFirstChild("Seats") then
-		for _, seat in pairs(map.Seats:GetChildren()) do
-			seat.Disabled = true
-		end
-	end
-
-    for _, spawnLocation in pairs(map:GetChildren()) do
-        if spawnLocation:IsA('SpawnLocation') then
-            table.insert(spawnLocations, spawnLocation)
-        end
-    end
-
-    local participatingPlayers = Players:GetPlayers()
-
-    for index, player in participatingPlayers do
-        participatingPlayers[index] = player.UserId
-    end
-
-	local assignedRoles
-    if #participatingPlayers < 3 then
+function gameService.assignRoles(participatingPlayers)
+    local assignedRoles
+    if #participatingPlayers == 1 and RunService:IsStudio() then
+        assignedRoles = roleAssigner.assignRoles({
+            roles = {
+                default = {"civilian"}
+            }
+        }, participatingPlayers)
+    elseif #participatingPlayers < 3 then
         error(`There are only {#participatingPlayers}/3 of required players.`)
     elseif #participatingPlayers >= 15 then
         assignedRoles = roleAssigner.assignRoles({
@@ -391,12 +414,386 @@ function gameService.startGame()
             }
         }, participatingPlayers)
     end
+    return assignedRoles
+end
 
+function gameService.NightPhase(allPlayersInfo, spawnLocations)
+    --[[
+    entry actions
+        teleport all players to random spawnLocations
+        first person should be enabled
+        start 15 second countdown to night time "Night starts in X seconds."
+        turn off chat
+        dim all lights
+    
+    phase actions
+        allow relevant roles to use their abilities
+        start a 90 second countdown which will skip to the clean up if it reaches 0
+        if a mafia kills someone, stop the previous timer and start a 15 second timer which skips to clean up after reaching 0
+    
+    clean up
+        all players should have their screen fade to black completely before changing to the next phase
+    ]]
+    -- entry actions
+    gameService.client.firstPersonForced:set(true)
+    for _, seat in workspace.Map.Seats:GetChildren() do
+        local seatWeld = seat:FindFirstChild("SeatWeld")
+        if seatWeld then
+            seatWeld:Destroy()
+        end
+    end
+    task.wait()
+    local allAlivePlayers = getPlayers(allPlayersInfo, function(_, playerInfo)
+        return playerInfo.alive
+    end)
+    for _, player in allAlivePlayers do
+        local character = player.Character
+        character:PivotTo(spawnLocations[math.random(1,#spawnLocations)].CFrame * CFrame.new(0, 5, 0))
+    end
+    gameService.client.setFadeProperty:fireAllClients({
+        transparency = 1,
+        duration = 1,
+        easing = ReactSpring.easings.easeInQuad
+    })
+    for i = gameConfig.nightStartTimer, 0, -1 do
+        gameService.client.setTopbarText:fireAllClients({
+            targetText = `Night starts in {i}`,
+            initialText = string.sub(`Night starts in {i}`, 1, -2)
+        })
+        task.wait(1)
+    end
+    gameService.client.setTopbarText:fireAllClients(nil)
+    gameService.client.lightsToggled:set(false)
+    gameService.client.chatToggled:set(false)
+
+    -- phase actions
+    -- allow relevant roles to use their abilities
+    local phaseFinished = Instance.new("BindableEvent")
+    local allMafia = getPlayers(allPlayersInfo, function(_, playerInfo)
+        return playerInfo.role == "mafia"
+    end)
+
+    -- i hope this works (it's probably not gonna work) (it worked)
+    local mafiaCountdownCancel = countdownCoroutineInit(gameConfig.mafiaKillTimer, 1, function(i)
+        gameService.client.countdownTimer:fireClients(allMafia, i)
+    end, function(cancelled)
+        gameService.client.countdownTimer:fireClients(allMafia, nil)
+        if cancelled then
+            return
+        end
+        phaseFinished:Fire()
+    end)
+    -- if a mafia kills someone, stop the previous timer and start a 15 second timer which skips to clean up after reaching 0
+
+    phaseFinished.Event:Wait()
+
+    -- clean up
+    gameService.client.setFadeProperty:fireAllClients({
+        transparency = 0,
+        duration = 1,
+        easing = ReactSpring.easings.easeOutQuad
+    })
+    task.wait(1)
+end
+
+function gameService.DayPhase(allPlayersInfo)
+    --[[
+    entry actions
+        lights are turned back on
+        if nobody died just skip this lol
+        all players should have their screen fade out from black
+        The death cutscene will play for 9 seconds
+        whoDied audio will play
+        Chat will turn ON
+        Everyone"s screen will show the corpse of the player on the floor, slowly zooming in above the
+        player who died
+        "[Player Name] died tonight." (3 seconds)
+        "Cause of Death: [Gunshot/Knife Wound]" (3 seconds)
+        "Found by: [Player Name]" (3 seconds) (If the body wasn't found by anyone, it will just say "No
+        one found the body.") (also no cutscene if nobody found it)
+
+    clean up
+        fade to black
+    ]]
+    -- entry actions
+    local someoneDied = false
+    gameService.client.lightsToggled:set(true)
+    local seatIndex = 1
+    local seats = workspace.Map.Seats:GetChildren()
+    for userId, userInfo in allPlayersInfo do
+        if not userInfo.alive then
+            return
+        end
+        local seat: Seat = seats[seatIndex]
+        local character = Players:GetPlayerByUserId(userId).Character
+        local humanoid = character:FindFirstChildWhichIsA("Humanoid")
+        character:PivotTo(seat:GetPivot())
+        seat:Sit(humanoid)
+        seatIndex += 1
+    end
+    if not someoneDied then
+        return
+    end
+    gameService.client.toggleAudio:fireAllClients({
+        sound = SoundService.whoDied,
+        playing = true,
+        duration = 1,
+        volume = 0.5
+    })
+    gameService.client.setFadeProperty:fireAllClients({
+        transparency = 1,
+        duration = 1,
+        easing = ReactSpring.easings.easeInQuad
+    })
+
+    -- i am not doing allat right now
+
+    -- clean up
+    gameService.client.setFadeProperty:fireAllClients({
+        transparency = 0,
+        duration = 1,
+        easing = ReactSpring.easings.easeOutQuad
+    })
+    gameService.client.toggleAudio:fireAllClients({
+        sound = SoundService.whoDied,
+        playing = false,
+        duration = 1,
+        volume = 0
+    })
+    task.wait(1)
+end
+
+function gameService.DiscussionPhase(allPlayersInfo)
+    --[[
+    entry actions
+        fade back in
+        chat turned on
+        camera set to third person
+        topbar should say "Discuss who you think the Mafia is."
+        mafiaDiscussion audio should play now
+
+    phase actions
+        this phase should be interruptable by vigilante
+        relevant roles are given abilities
+
+    clean up
+        all roles should have their abilities disabled
+        mafiaDiscussion audio is turned off now
+    ]]
+    -- entry actions
+    gameService.client.setFadeProperty:fireAllClients({
+        transparency = 1,
+        duration = 1,
+        easing = ReactSpring.easings.easeOutQuad
+    })
+    task.wait(1)
+    gameService.client.chatToggled:set(true)
+    gameService.client.firstPersonForced:set(false)
+    local randomDiscussionSound = SoundService[`discussionMusic{math.random(1,3)}`]
+    gameService.client.toggleAudio:fireAllClients({
+        sound = randomDiscussionSound,
+        playing = true,
+        duration = 1,
+        volume = 0.5
+    })
+
+    -- phase actions
+    -- this phase should be interruptable by vigilante
+    -- relevant roles are given abilities
+    local discussionFinished = false
+    local secondsToDiscuss = gameConfig.discussionTimer
+    repeat
+        local breakLoopEvent = Instance.new("BindableEvent")
+        local discussionCountdownCancel = countdownCoroutineInit(secondsToDiscuss, 1, function(i)
+            gameService.client.countdownTimer:fireAllClients(i)
+            gameService.client.setTopbarText:fireAllClients({
+                targetText = `Discuss who you think the Mafia is. ({i})`,
+                initialText = string.sub(`Discuss who you think the Mafia is. ({i})`, 1, -2)
+            })
+        end, function(cancelled)
+            gameService.client.countdownTimer:fireAllClients(nil)
+            breakLoopEvent:Fire()
+            if cancelled then
+                return
+            end
+            discussionFinished = true
+        end)
+
+        local vigilanteInterruptConnection
+        vigilanteInterruptConnection = gameService.vigilanteInterrupt:Connect(function(player)
+            print(`{player.Name} (probably vigilante) is interrupting discussion`)
+            secondsToDiscuss = discussionCountdownCancel()
+            if secondsToDiscuss <= 0 then
+                discussionFinished = true
+                breakLoopEvent:Fire()
+                return
+            end
+            -- do cutscene stuff
+            -- other roles shouldnt be able to do anything during this cutscene
+
+            -- give roles access to their abilities now
+            breakLoopEvent:Fire()
+        end)
+
+        breakLoopEvent.Event:Wait()
+        vigilanteInterruptConnection:Disconnect()
+    until discussionFinished
+
+    -- clean up
+    -- all roles should have their abilities disabled at this point
+    gameService.client.setTopbarText:fireAllClients(nil)
+    gameService.client.toggleAudio:fireAllClients({
+        sound = randomDiscussionSound,
+        playing = false,
+        duration = 1,
+        volume = 0
+    })
+end
+
+function gameService.VotingPhase(allPlayersInfo)
+    --[[
+    entry actions
+        topbar should say "Vote on who you believe the Mafia is."
+        mafiaVoting audio should play now
+
+    phase actions
+        players get the ability to vote
+        tldr players can choose to vote someone
+        there will be a skip voting button which will skip if majority votes to skip (>50%) after 20 seconds
+            if there are enough votes, skip immediately to clean up
+            if not enough votes, the button will disappear
+        after a 30 second timer (unless skipped), server should say "Votes are in."
+        mafiaVoting audio is turned off now
+        mafiaVotes audio should play now
+        The number of votes everyone had will show up above their heads. After 3 seconds, the camera
+            will move in front of the player with the most votes for a total of 4 seconds. The server will say
+            "[Player Name] had X votes" for 4 seconds. Everyone's screens will go black after these 4
+            seconds, and there will be a gunshot sound. Everyone's screens will go back to normal, and the
+            player with the most votes will have disappeared off their chair. Once this happens, everyone's
+            screens will fade black, and the next night will begin.
+        If the votes are tied, AND a Judge is present, the camera won"t go anywhere. The server will say "The votes have tied",
+            "The Judge has to make a decision on who to vote out", and a countdown of 15 seconds will begin.
+        For the Judge it will say, "Make a vote on who you think should be voted out."
+        The Judge will bring up the Voting UI with the tied players on the list. The Judge has to vote for
+            a player who they think should be voted out. If the Judge does not want to vote for anyone, they
+            can click the button that says "Skip Voting" on the bottom left of their screen, that only they can see.
+        If the Judge votes for one of the players, the game will say "The Judge has decided on a verdict.", and then play the same voting out cutscene
+        If the judge doesn"t vote for anyone, the game will say
+            "The Judge has decided to not vote for anyone.", then skip to clean up
+        
+        IF the person voted out was a Jester, after the Jester gets voted out, the server will say "The
+            player eliminated was a Jester. They will strike the next night."
+    clean up
+        mafiaVoting audio is turned off now if it hasnt already been
+    ]]
+    -- entry actions
+    -- mafiaVoting should be played here but uhh it doesnt exist lol
+
+    -- phase actions
+    gameService.client.canVote:set(true)
+    print(gameService.client.canVote:get())
+
+    local votingPhaseFinished = Instance.new("BindableEvent")
+
+    local allAlivePlayers = getPlayers(allPlayersInfo, function(_, playerInfo)
+        return playerInfo.alive
+    end)
+    local playerVotes = {}
+    local playerSkips = {}
+
+    local voteConnection = gameService.client.votePlayer:connect(function(player: Player, targetVote: Player)
+        local userId = player.UserId
+        if not table.find(allAlivePlayers, player) or playerVotes[userId] then
+            return
+        end
+        if not table.find(allAlivePlayers, targetVote) then
+            return
+        end
+        playerVotes[player.UserId] = targetVote.UserId
+    end)
+
+    local skipConnection = gameService.client.skipVote:connect(function(player: Player)
+        local userId = player.UserId
+        if table.find(playerSkips, userId) then
+            return
+        end
+        table.insert(playerSkips, userId)
+    end)
+
+    local votingCountdownCancel = countdownCoroutineInit(gameConfig.votingTimer, 1, function(i)
+        gameService.client.countdownTimer:fireAllClients(i)
+        gameService.client.setTopbarText:fireAllClients({
+            targetText = `Vote on who you believe the Mafia is. ({i})`,
+            initialText = string.sub(`Vote on who you believe the Mafia is. ({i})`, 1, -2)
+        })
+    end, function()
+        gameService.client.countdownTimer:fireAllClients(nil)
+        votingPhaseFinished:Fire()
+    end)
+
+    task.delay(gameConfig.skipVoteTimer, function()
+        if #playerSkips > #allAlivePlayers/2 then
+            votingCountdownCancel()
+        end
+    end)
+
+    print('adfjhnaisfh')
+    votingPhaseFinished.Event:Wait()
+
+    gameService.client.canVote:set(false)
+
+    local talliedVotes = {}
+    -- tally votes
+    for _, voted in playerVotes do
+        local player = Players:GetPlayerByUserId(voted)
+        if not talliedVotes[player] then
+            talliedVotes[player] = 0
+        end
+        talliedVotes[player] += 1
+    end
+    
+    local mostVotes = {}
+
+    for player, votes in talliedVotes do
+        if not mostVotes[votes] then
+            mostVotes[votes] = {}
+        end
+        table.insert(mostVotes[votes], player)
+    end
+
+    print(mostVotes)
+
+    local votesText = "The votes are in."
+    gameService.client.setTopbarText:fireAllClients({
+        targetText = votesText
+    })
+    
+    -- vote someone out
+
+    -- handle ties (try just killing all players in a tie lol)
+    
+    task.wait(2+#votesText*.025)
+
+    voteConnection:Disconnect()
+    skipConnection:Disconnect()
+
+    -- clean up
+    -- mafiaVoting should be stopped here but uhh it doesnt exist lol
+    gameService.client.setTopbarText:fireAllClients(nil)
+    gameService.client.setFadeProperty:fireAllClients({
+        transparency = 0,
+        duration = 1,
+        easing = ReactSpring.easings.easeOutQuad
+    })
+    task.wait(1)
+end
+
+function gameService.gameIntro(assignedRoles, participatingPlayers)
     for userId, role in assignedRoles do
         local player = Players:GetPlayerByUserId(userId)
         if not player then
-			assignedRoles[userId] = nil
-			participatingPlayers[table.find(participatingPlayers, userId)] = nil
+            assignedRoles[userId] = nil
+            participatingPlayers[table.find(participatingPlayers, userId)] = nil
         end
         gameService.client.explainRules:fireClient(player, role)
         print(`Sent explainRules to {player.Name}, {role}`)
@@ -437,6 +834,47 @@ function gameService.startGame()
     skipIntroConnection:Disconnect()
 
     print("All participating players are ready.")
+end
+
+function gameService.startGame()
+    gameService.client.introSkipped:set(false)
+    gameService.client.gameStarted:set(false)
+    gameService.client.introSkippedInfo:set({
+        playersSkippedIntro = 0,
+        participatingPlayers = 0
+    })
+
+    local spawnLocations = {}
+	local map = Maps[math.random(1, #Maps)]:Clone()
+	map = ServerStorage.MAPS.Motel:Clone() -- test code for getting a specific map lol, should make a debug config instead
+    map.Name = "Map"
+    map.Parent = workspace
+
+    -- disable any seats found in maps
+	if map:FindFirstChild("Seats") then
+		for _, seat in pairs(map.Seats:GetChildren()) do
+			seat.Disabled = true
+		end
+	end
+
+    for _, spawnLocation in pairs(map:GetChildren()) do
+        if spawnLocation:IsA('SpawnLocation') then
+            table.insert(spawnLocations, spawnLocation)
+        end
+    end
+
+    local participatingPlayers = Players:GetPlayers()
+
+    for index, player in participatingPlayers do
+        participatingPlayers[index] = player.UserId
+    end
+
+	local assignedRoles = gameService.assignRoles(participatingPlayers)
+
+    if gameConfig.shouldPlayIntro then
+        gameService.gameIntro(assignedRoles, participatingPlayers)
+    end
+
     gameService.client.gameStarted:set(true)
 
     local allPlayersInfo = {}
@@ -459,294 +897,13 @@ function gameService.startGame()
         for _, phase in gamePhases do
             gameService.client.gamePhase:set(phase)
             if phase == "Night" then
-                gameService.client.setFadeProperty:fire({
-                    transparency = 1,
-                    duration = 1,
-                    easing = ReactSpring.easings.easeInQuad
-                })
-                --[[
-                entry actions
-                    teleport all players to random spawnLocations
-                    first person should be enabled
-                    start 15 second countdown to night time "Night starts in X seconds."
-                    turn off chat
-                    dim all lights
-                
-                phase actions
-                    allow relevant roles to use their abilities
-                    start a 90 second countdown which will skip to the clean up if it reaches 0
-                    if a mafia kills someone, stop the previous timer and start a 15 second timer which skips to clean up after reaching 0
-                
-                clean up
-                    all players should have their screen fade to black completely before changing to the next phase
-                ]]
-                -- entry actions
-                gameService.client.firstPersonForced:set(true)
-                local allAlivePlayers = getPlayers(allPlayersInfo, function(_, playerInfo)
-                    return playerInfo.alive
-                end)
-                for userId, _ in allAlivePlayers do
-                    local player = Players:GetPlayerByUserId(userId)
-                    local character = player.CHaracter
-                    character:PivotTo(spawnLocations[math.random(1,#spawnLocations)].CFrame * CFrame.new(0, 5, 0))
-                end
-
-                for i = gameConfig.nightStartTimer, 0, -1 do
-                    gameService.client.setTopbarText:fireAllClients({
-                        targetText = `Night starts in {i}`,
-                        initialText = `Night starts in `
-                    })
-                    task.wait(1)
-                end
-                gameService.client.setTopbarText:fireAllClients(nil)
-                gameService.client.lightsToggled:set(false)
-                gameService.client.chatToggled:set(false)
-
-                -- phase actions
-                -- allow relevant roles to use their abilities
-                local phaseFinished = Instance.new("BindableEvent")
-                local allMafia = getPlayers(allPlayersInfo, function(_, playerInfo)
-                    return playerInfo.role == "mafia"
-                end)
-
-                -- i hope this works (it's probably not gonna work)
-                local mafiaCountdownCancel = countdownCoroutineInit(gameConfig.mafiaKillTimer, 1, function(i)
-                    gameService.client.countdownTimer:fireClients(allMafia, i)
-                end, function()
-                    gameService.client.countdownTimer:fireClients(allMafia, nil)
-                    phaseFinished:Fire()
-                end)
-                -- if a mafia kills someone, stop the previous timer and start a 15 second timer which skips to clean up after reaching 0
-
-                phaseFinished:Wait()
-
-                -- clean up
-                gameService.client.setFadeProperty:fire({
-                    transparency = 0,
-                    duration = 1,
-                    easing = ReactSpring.easings.easeOutQuad
-                })
-                task.wait(1)
+                gameService.NightPhase(allPlayersInfo, spawnLocations)
             elseif phase == "Day" then
-                --[[
-                entry actions
-                    lights are turned back on
-                    if nobody died just skip this lol
-                    all players should have their screen fade out from black
-                    The death cutscene will play for 9 seconds
-                    whoDied audio will play
-                    Chat will turn ON
-                    Everyone"s screen will show the corpse of the player on the floor, slowly zooming in above the
-                    player who died
-                    "[Player Name] died tonight." (3 seconds)
-                    "Cause of Death: [Gunshot/Knife Wound]" (3 seconds)
-                    "Found by: [Player Name]" (3 seconds) (If the body wasn't found by anyone, it will just say "No
-                    one found the body.") (also no cutscene if nobody found it)
-
-                clean up
-                    fade to black
-                ]]
-                -- entry actions
-                local someoneDied = false
-                gameService.client.lightsToggled:set(true)
-                gameService.client.toggleAudio:fire({
-                    sound = SoundService.whoDied,
-                    playing = true
-                })
-                if not someoneDied then
-                    continue
-                end
-                gameService.client.setFadeProperty:fire({
-                    transparency = 1,
-                    duration = 1,
-                    easing = ReactSpring.easings.easeInQuad
-                })
-
-                -- i am not doing allat right now
-
-                -- clean up
-                gameService.client.setFadeProperty:fire({
-                    transparency = 0,
-                    duration = 1,
-                    easing = ReactSpring.easings.easeOutQuad
-                })
-                task.wait(1)
+                gameService.DayPhase(allPlayersInfo)
             elseif phase == "Discussion" then
-                --[[
-                entry actions
-                    fade back in
-                    chat turned on
-                    camera set to third person
-                    topbar should say "Discuss who you think the Mafia is."
-                    mafiaDiscussion audio should play now
-
-                phase actions
-                    this phase should be interruptable by vigilante
-                    relevant roles are given abilities
-
-                clean up
-                    all roles should have their abilities disabled
-                    mafiaDiscussion audio is turned off now
-                ]]
-                -- entry actions
-                gameService.client.chatToggled:set(true)
-                gameService.client.firstPersonForced:set(false)
-                gameService.client.setFadeProperty:fire({
-                    transparency = 1,
-                    duration = 1,
-                    easing = ReactSpring.easings.easeOutQuad
-                })
-                gameService.client.setTopbarText:fireAllClients({
-                    targetText = "Discuss who you think the Mafia is."
-                })
-                local randomDiscussionSound = SoundService[`discussionMusic{math.random(1,3)}`]
-                gameService.client.toggleAudio:fire({
-                    sound = randomDiscussionSound,
-                    playing = true
-                })
-
-                -- phase actions
-                -- this phase should be interruptable by vigilante
-                -- relevant roles are given abilities
-                local discussionFinished = false
-                local secondsToDiscuss = 10
-                repeat
-                    local breakLoopEvent = Instance.new("BindableEvent")
-                    local discussionCountdownCancel, discussionCountdownFinished = countdownCoroutineInit(secondsToDiscuss, 1, function(i)
-                        gameService.client.countdownTimer:fireAllClients(i)
-                    end, function()
-                        gameService.client.countdownTimer:fireAllClients(nil)
-                    end)
-
-                    local discussionCountdownConnection = discussionCountdownFinished:Connect(function()
-                        discussionFinished = true
-                        breakLoopEvent:Fire()
-                    end)
-
-                    local vigilanteInterruptConnection
-                    vigilanteInterruptConnection = gameService.vigilanteInterrupt:Connect(function(player)
-                        print(`{player.Name} is interrupting discussion`)
-                        secondsToDiscuss = discussionCountdownCancel()
-                        if secondsToDiscuss <= 0 then
-                            discussionFinished = true
-                            breakLoopEvent:Fire()
-                            return
-                        end
-                        -- do cutscene stuff
-                        -- other roles shouldnt be able to do anything during this cutscene
-
-                        -- give roles access to their abilities now
-                        breakLoopEvent:Fire()
-                    end)
-
-                    breakLoopEvent:Wait()
-                    discussionCountdownConnection:Disconnect()
-                    vigilanteInterruptConnection:Disconnect()
-                until discussionFinished
-
-                -- clean up
-                -- all roles should have their abilities disabled at this point
-                gameService.client.setTopbarText:fireAllClients(nil)
-                gameService.client.toggleAudio:fire({
-                    sound = randomDiscussionSound,
-                    playing = false
-                })
+                gameService.DiscussionPhase(allPlayersInfo)
             elseif phase == "Voting" then
-                --[[
-                entry actions
-                    topbar should say "Vote on who you believe the Mafia is."
-                    mafiaVoting audio should play now
-
-                phase actions
-                    players get the ability to vote
-                    tldr players can choose to vote someone
-                    there will be a skip voting button which will skip if majority votes to skip (>50%) after 20 seconds
-                        if there are enough votes, skip immediately to clean up
-                        if not enough votes, the button will disappear
-                    after a 30 second timer (unless skipped), server should say "Votes are in."
-                    mafiaVoting audio is turned off now
-                    mafiaVotes audio should play now
-                    The number of votes everyone had will show up above their heads. After 3 seconds, the camera
-                     will move in front of the player with the most votes for a total of 4 seconds. The server will say
-                     "[Player Name] had X votes" for 4 seconds. Everyone's screens will go black after these 4
-                     seconds, and there will be a gunshot sound. Everyone's screens will go back to normal, and the
-                     player with the most votes will have disappeared off their chair. Once this happens, everyone's
-                     screens will fade black, and the next night will begin.
-                    If the votes are tied, AND a Judge is present, the camera won"t go anywhere. The server will say "The votes have tied",
-                     "The Judge has to make a decision on who to vote out", and a countdown of 15 seconds will begin.
-                    For the Judge it will say, "Make a vote on who you think should be voted out."
-                    The Judge will bring up the Voting UI with the tied players on the list. The Judge has to vote for
-                     a player who they think should be voted out. If the Judge does not want to vote for anyone, they
-                     can click the button that says "Skip Voting" on the bottom left of their screen, that only they can see.
-                    If the Judge votes for one of the players, the game will say "The Judge has decided on a verdict.", and then play the same voting out cutscene
-                    If the judge doesn"t vote for anyone, the game will say
-                     "The Judge has decided to not vote for anyone.", then skip to clean up
-                    
-                    IF the person voted out was a Jester, after the Jester gets voted out, the server will say "The
-                     player eliminated was a Jester. They will strike the next night."
-                clean up
-                    mafiaVoting audio is turned off now if it hasnt already been
-                ]]
-                -- entry actions
-                gameService.client.setTopbarText:fireAllClients({
-                    targetText = "Vote on who you believe the Mafia is."
-                })
-                -- mafiaVoting should be played here but uhh it doesnt exist lol
-
-                -- phase actions
-                gameService.client.canVote:set(true)
-
-                local votingPhaseFinished = Instance.new("BindableEvent")
-
-                local allAlivePlayers = getPlayers(allPlayersInfo, function(_, playerInfo)
-                    return playerInfo.alive
-                end)
-                local playerVotes = {}
-                local playerSkips = {}
-
-                local voteConnection = gameService.client.votePlayer:connect(function(player: Player, targetVote: Player)
-                    local userId = player.UserId
-                    if not table.find(allAlivePlayers, player) and playerVotes[userId] then
-                        return
-                    end
-                    if not table.find(allAlivePlayers, targetVote) then
-                        return
-                    end
-                    playerVotes[player.UserId] = targetVote.UserId
-                end)
-
-                local skipConnection = gameService.client.skipVote:connect(function(player: Player)
-                    local userId = player.UserId
-                    if table.find(playerSkips, userId) then
-                        return
-                    end
-                    table.insert(playerSkips, userId)
-                end)
-
-                local votingCountdownCancel = countdownCoroutineInit(gameConfig.votingTimer, 1, function(i)
-                    gameService.client.countdownTimer:fireAllClients(i)
-                end, function()
-                    gameService.client.countdownTimer:fireAllClients(nil)
-                    votingPhaseFinished:Fire()
-                end)
-
-                task.delay(gameConfig.skipVoteTimer, function()
-                    if #playerSkips > #allAlivePlayers/2 then
-                        votingCountdownCancel()
-                    end
-                end)
-
-                votingPhaseFinished:Wait()
-
-                -- clean up
-                -- mafiaVoting should be stopped here but uhh it doesnt exist lol
-                gameService.client.setTopbarText:fire(nil)
-                gameService.client.setFadeProperty:fire({
-                    transparency = 0,
-                    duration = 1,
-                    easing = ReactSpring.easings.easeOutQuad
-                })
-                task.wait(1)
+                gameService.VotingPhase(allPlayersInfo)
             end
         end
     end
