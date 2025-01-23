@@ -45,6 +45,10 @@ local uiList = {
 		uiName = "Fade",
 		ignoreGuiInset = true
 	},
+	{
+		uiName = "MafiaVote",
+		ignoreGuiInset = true
+	},
 }
 
 local uiRoots = {}
@@ -69,7 +73,7 @@ function uiController.start()
 		uiPropsSignal[uiName]:Fire(props)
 	end)
 
-	for uiIndex, uiInfo in uiList do
+	for _, uiInfo in uiList do
 		local uiName = uiInfo.uiName
 		uiPropsSignal[uiName] = Signal.new()
 		uiController:setUIToggled(uiName, true)
@@ -82,6 +86,7 @@ function uiController:findIndexFromUIName(uiName: string)
 			return index
 		end
 	end
+    return
 end
 
 function uiController:setUIToggled(uiName: string, toggled: boolean)
@@ -111,6 +116,36 @@ function uiController:setUIToggled(uiName: string, toggled: boolean)
 		})
 	}), playerGui, uiName))
 	uiRoots[uiName] = uiRoot
+end
+
+function uiController:setFadeProps(transparency: number?, duration: number?, easing: ((number) -> number)?)
+	uiController.setUIPropSignal:Fire("Fade", {
+		transparency = transparency,
+		duration = duration,
+		easing = easing
+	})
+end
+
+function uiController:setTopbarProps(targetText: string?, initialText: string?, typewriterDelay: number?)
+	uiController.setUIPropSignal:Fire("Topbar", {
+		typewriterDelay = typewriterDelay,
+		initialText = initialText,
+		targetText = targetText,
+	})
+end
+
+function uiController:setSkipIntroVisible(visible: boolean?)
+	uiController.setUIPropSignal:Fire("SkipIntro", {
+		visible = visible
+	})
+end
+
+function uiController:setWitchTimerProps(timeStarted: number?, timer: number?)
+	uiController.setUIPropSignal:Fire("WitchTimer", {
+		timeStarted = timeStarted,
+		timer = timer
+	})
+	
 end
 
 return uiController
