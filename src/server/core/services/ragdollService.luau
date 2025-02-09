@@ -4,19 +4,34 @@ local Players = game:GetService("Players")
 local sharedPackages = ReplicatedStorage.sharedPackages
 
 local network = require(sharedPackages.network)
+local Signal = require(sharedPackages.Signal)
+
+--[[
+local SOCKET_SETTINGS_R15 = {
+	head = {MaxFrictionTorque = 150, UpperAngle = 15, TwistLowerAngle = -15, TwistUpperAngle = 15},
+	upperTorso = {MaxFrictionTorque = 50, UpperAngle = 20, TwistLowerAngle = -10, TwistUpperAngle = 30},
+	lowerTorso = {MaxFrictionTorque = 50, UpperAngle = 20, TwistLowerAngle = 0, TwistUpperAngle = 30},
+	upperArms = {MaxFrictionTorque = 150, UpperAngle = 90, TwistLowerAngle = -45, TwistUpperAngle = 45},
+	lowerArms = {MaxFrictionTorque = 150, UpperAngle = 0, TwistLowerAngle = -5, TwistUpperAngle = 65},
+	upperLegs = {MaxFrictionTorque = 150, UpperAngle = 40, TwistLowerAngle = -5, TwistUpperAngle = 20},
+	lowerLegs = {MaxFrictionTorque = 150, UpperAngle = 0, TwistLowerAngle = -45, TwistUpperAngle = 10},
+	handsFeets = {MaxFrictionTorque = 50, UpperAngle = 10, TwistLowerAngle = -45, TwistUpperAngle = 25},
+}
+]]
 
 local SOCKET_SETTINGS_R15 = {
-	head = {MaxFrictionTorque = 150, UpperAngle = 15, TwistLowerAngle = -15, TwistUpperAngle = 15}, 
-	upperTorso = {MaxFrictionTorque = 50, UpperAngle = 20, TwistLowerAngle = -10, TwistUpperAngle = 30},  
-	lowerTorso = {MaxFrictionTorque = 50, UpperAngle = 20, TwistLowerAngle = 0, TwistUpperAngle = 30},  
-	upperArms = {MaxFrictionTorque = 150, UpperAngle = 90, TwistLowerAngle = -45, TwistUpperAngle = 45},  
-	lowerArms = {MaxFrictionTorque = 150, UpperAngle = 0, TwistLowerAngle = -5, TwistUpperAngle = 65},  
-	upperLegs = {MaxFrictionTorque = 150, UpperAngle = 40, TwistLowerAngle = -5, TwistUpperAngle = 20},  
-	lowerLegs = {MaxFrictionTorque = 150, UpperAngle = 0, TwistLowerAngle = -45, TwistUpperAngle = 10},  
-	handsFeets = {MaxFrictionTorque = 50, UpperAngle = 10, TwistLowerAngle = -45, TwistUpperAngle = 25},  
+	head = {MaxFrictionTorque = 50, UpperAngle = 15, TwistLowerAngle = -15, TwistUpperAngle = 15},
+	upperTorso = {MaxFrictionTorque = 50, UpperAngle = 20, TwistLowerAngle = -10, TwistUpperAngle = 30},
+	lowerTorso = {MaxFrictionTorque = 50, UpperAngle = 20, TwistLowerAngle = 0, TwistUpperAngle = 30},
+	upperArms = {MaxFrictionTorque = 50, UpperAngle = 15, TwistLowerAngle = -45, TwistUpperAngle = 45},
+	lowerArms = {MaxFrictionTorque = 50, UpperAngle = 0, TwistLowerAngle = -5, TwistUpperAngle = 30},
+	upperLegs = {MaxFrictionTorque = 50, UpperAngle = 40, TwistLowerAngle = -5, TwistUpperAngle = 20},
+	lowerLegs = {MaxFrictionTorque = 50, UpperAngle = 0, TwistLowerAngle = -45, TwistUpperAngle = 10},
+	handsFeets = {MaxFrictionTorque = 50, UpperAngle = 10, TwistLowerAngle = -45, TwistUpperAngle = 25},
 }
 
 local ragdollService = {
+    setRagdoll = Signal.new(),
     client = {
         ragdoll = network.Server.RemoteSignal.new(),
         unragdoll = network.Server.RemoteSignal.new()
@@ -26,16 +41,32 @@ local ragdollService = {
 function ragdollService.start()
     Players.PlayerAdded:Connect(function(player)
         player.CharacterAdded:Connect(ragdollService.characterAdded)
-        task.spawn(function()
-            while task.wait(3) do
-                print("ragdoll!")
-                ragdollService.ragdollCharacter(player.Character)
-                task.wait(3)
-                print("unragdoll!")
-                ragdollService.unragdollCharacter(player.Character)
-            end
-        end)
+        -- task.spawn(function()
+        --     while task.wait(3) do
+        --         print("ragdoll!")
+        --         ragdollService.ragdollCharacter(player.Character)
+        --         task.wait(3)
+        --         print("unragdoll!")
+        --         ragdollService.unragdollCharacter(player.Character)
+        --     end
+        -- end)
     end)
+    ragdollService.setRagdoll:Connect(function(character, ragdollToggled)
+        if ragdollToggled then
+            ragdollService.ragdollCharacter(character)
+        else
+            ragdollService.unragdollCharacter(character)
+        end
+    end)
+    -- task.delay(5, function()
+    --     print('balls')
+    --     ragdollService.characterAdded(workspace.R15)
+    --     while task.wait(1) do
+    --         ragdollService.ragdollCharacter(workspace.R15)
+    --         task.wait(1)
+    --         ragdollService.unragdollCharacter(workspace.R15)
+    --     end
+    -- end)
 end
 
 function ragdollService.characterAdded(character)
@@ -59,6 +90,9 @@ function ragdollService.characterAdded(character)
             weld.Parent = collisionPart
         end
     end
+    humanoid.Died:Connect(function()
+        ragdollService.ragdollCharacter(character)
+    end)
 end
 
 function ragdollService.toggleRagdollCollisionGroup(character: Model, enabled: boolean)
@@ -125,7 +159,6 @@ function ragdollService.buildJoints(character: Model)
             continue
         end
 
-        print(motor6D.Name)
         local attachment0: Attachment, attachment1: Attachment = Instance.new("Attachment"), Instance.new("Attachment")
 
         attachment0.Name = "RAGDOLL_ATTACHMENT"
@@ -136,10 +169,11 @@ function ragdollService.buildJoints(character: Model)
         attachment1.CFrame = motor6D.C1
         attachment1.Parent = motor6D.Part1
 
-        local noCollisionConstraint = Instance.new("NoCollisionConstraint")
-        noCollisionConstraint.Part0 = motor6D.Part0
-        noCollisionConstraint.Part1 = motor6D.Part1
-        noCollisionConstraint.Parent = motor6D.Parent
+        -- local noCollisionConstraint = Instance.new("NoCollisionConstraint")
+        -- noCollisionConstraint.Name = "RAGDOLL_NO_COLLISION"
+        -- noCollisionConstraint.Part0 = motor6D.Part0
+        -- noCollisionConstraint.Part1 = motor6D.Part1
+        -- noCollisionConstraint.Parent = motor6D.Parent
 
         local joint: BallSocketConstraint = Instance.new("BallSocketConstraint")
         joint.Name = "RAGDOLL_CONSTRAINT"
@@ -166,14 +200,14 @@ end
 
 function ragdollService.destroyJoints(character: Model)
     for _, descendant in character:GetDescendants() do
-        if descendant.Name == "RAGDOLL_ATTACHMENT" or descendant.Name == "RAGDOLL_CONSTRAINT" then
+        if descendant.Name == "RAGDOLL_ATTACHMENT" or descendant.Name == "RAGDOLL_CONSTRAINT" or descendant.Name == "RAGDOLL_NO_COLLISION" then
             descendant:Destroy()
         end
     end
 end
 
 function ragdollService.ragdollCharacter(character: Model)
-    if not character then
+    if not character or character:GetAttribute("Ragdolled") then
         return
     end
     local player = Players:GetPlayerFromCharacter(character)
@@ -189,11 +223,20 @@ function ragdollService.ragdollCharacter(character: Model)
 
     if player then
         ragdollService.client.ragdoll:fireClient(player)
+    else
+        humanoidRootPart:SetNetworkOwner(nil)
+        humanoid.AutoRotate = false
+        humanoid.PlatformStand = true
     end
+    character:SetAttribute("Ragdolled", true)
+    local handVelocity = math.random(-50, 50)
+    character.Head.AssemblyLinearVelocity += character.Head.CFrame.LookVector * 50
+    character.RightHand.AssemblyLinearVelocity += character.RightHand.CFrame.LookVector * Vector3.new(0, 100, 50)
+    character.LeftHand.AssemblyLinearVelocity += character.LeftHand.CFrame.LookVector * Vector3.new(0, 100, 50)
 end
 
 function ragdollService.unragdollCharacter(character: Model)
-    if not character then
+    if not character or not character:GetAttribute("Ragdolled") then
         return
     end
     local player = Players:GetPlayerFromCharacter(character)
@@ -209,7 +252,14 @@ function ragdollService.unragdollCharacter(character: Model)
 
     if player then
         ragdollService.client.unragdoll:fireClient(player)
+    else
+        humanoidRootPart:SetNetworkOwner(nil)
+        humanoid.AutoRotate = true
+        humanoid.PlatformStand = false
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+        humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
     end
+    character:SetAttribute("Ragdolled", nil)
 end
 
 return ragdollService

@@ -4,8 +4,9 @@ local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 
 local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
-
 local mouse = LocalPlayer:GetMouse()
+
+local voteHighlight = ReplicatedStorage.assets.voteHighlight
 
 local Packages = ReplicatedStorage.sharedPackages
 
@@ -13,6 +14,8 @@ local shared = ReplicatedStorage.shared
 
 local controllers = ReplicatedStorage.client.controllers
 local armController = require(controllers.armController)
+
+local getCharacter = require(shared.modules.getCharacter)
 
 local serviceUtil = require(shared.utilities.serviceUtil)
 local gameService = serviceUtil.service("gameService")
@@ -22,18 +25,6 @@ local ReactSpring = require(Packages.ReactSpring)
 local React = require(Packages.React)
 
 local e = React.createElement
-
-local function getCharacter(basePart: BasePart)
-    if not basePart or not basePart.Parent or not basePart.Parent.Parent then
-        return
-    end
-	local humanoid = basePart.Parent:FindFirstChildWhichIsA("Humanoid")
-		or basePart.Parent.Parent:FindFirstChildWhichIsA("Humanoid")
-	if not humanoid then
-		return
-	end
-	return humanoid.Parent
-end
 
 local function MafiaVote()
 	local canVote, setCanVote = React.useState(false)
@@ -54,17 +45,16 @@ local function MafiaVote()
 	end, {})
 
 	React.useEffect(function()
-        print(canVote)
 		if not canVote then
             setVoteConfirmed(false)
             setTarget(nil)
             -- reseting variables and armController, might need to reset differently so as to not conflict with a different controller
-            armController.setIsPointing:Fire(false)
+            armController.setIsPointing:Fire("MafiaVote", false)
             armController.setPointingTarget:Fire(nil)
 			return
 		end
 
-		armController.setIsPointing:Fire(true)
+		armController.setIsPointing:Fire("MafiaVote", true)
 
         if voteConfirmed then
             return
@@ -105,12 +95,10 @@ local function MafiaVote()
 
 	React.useEffect(function()
 		local connection
-		local highlight = Instance.new("Highlight")
-		highlight.FillColor = Color3.fromRGB(190, 255, 253)
-		highlight.OutlineColor = Color3.fromRGB(119, 255, 250)
+		local highlight = voteHighlight:Clone()
 		if target then
 			highlight.Parent = target.Character
-		else
+		elseif canVote then
 			connection = RunService.RenderStepped:Connect(function()
 				local character = getCharacter(mouse.Target)
 				if character then
@@ -126,13 +114,13 @@ local function MafiaVote()
 			end
 			highlight:Destroy()
 		end
-	end, {target, mouse.Target})
+	end, {canVote, target, mouse.Target})
 
 	local function confirmVote()
 		if not target or voteConfirmed then
 			return
 		end
-		armController.setIsPointing:Fire(true) -- redundancy
+		armController.setIsPointing:Fire("MafiaVote", true) -- redundancy
         setVoteConfirmed(true)
         -- note that it should prevent voting for a new player, so it should visually reflect that
         gameService.votePlayer:fireServer(target)
@@ -143,7 +131,7 @@ local function MafiaVote()
 		if not target or voteConfirmed then
 			return
 		end
-		armController.setIsPointing:Fire(false)
+		armController.setIsPointing:Fire("MafiaVote", false)
 		armController.setPointingTarget:Fire(nil)
 		print("Vote cancelled for "..target.Name)
 		setTarget(nil)

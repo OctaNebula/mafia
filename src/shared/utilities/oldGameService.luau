@@ -13,11 +13,17 @@ local Signal = require(sharedPackages.Signal)
 
 local roleAssigner = require(serverModules.roleAssigner)
 
+local services = ServerStorage.server.services
+local pointingService = require(services.pointingService)
+local ragdollService = require(services.ragdollService)
+
 -- misc instance variables that are likely to be moved out of gameService
 local Maps = ServerStorage:WaitForChild("MAPS"):GetChildren()
 
 local gameService = {
+    playersInfo = network.Server.RemoteProperty.new({}),
     vigilanteInterrupt = Signal.new(),
+    killPlayer = Signal.new(),
     client = {
         -- server -> client
         playDeathCutscene = network.Server.RemoteSignal.new(),
@@ -25,17 +31,15 @@ local gameService = {
         skipIntro = network.Server.RemoteSignal.new(),
         setTopbarText = network.Server.RemoteSignal.new(),
         setFadeProperty = network.Server.RemoteSignal.new(),
-        countdownTimer = network.Server.RemoteSignal.new(),
         toggleAudio = network.Server.RemoteSignal.new(),
+        sendMapDescendantsCount = network.Server.RemoteSignal.new(),
 
         -- client -> server
         introCompleted = network.Server.RemoteSignal.new(),
         votePlayer = network.Server.RemoteSignal.new(),
         skipVote = network.Server.RemoteSignal.new(),
-
-        -- unreliable client -> server
-        pointHead = network.Server.RemoteSignal.new(),
-        pointArm = network.Server.RemoteSignal.new(),
+        gameLoaded = network.Server.RemoteSignal.new(),
+        mapLoaded = network.Server.RemoteSignal.new(),
 
         -- intro properties
         introSkipped = network.Server.RemoteProperty.new(false),
@@ -46,6 +50,7 @@ local gameService = {
         
         -- game states
         gameStarted = network.Server.RemoteProperty.new(false),
+        abilitiesEnabled = network.Server.RemoteProperty.new(false),
         gamePhase = network.Server.RemoteProperty.new(nil),
 
         -- client states
@@ -57,255 +62,19 @@ local gameService = {
 }
 
 local gameConfig = {
-    gameStartTimer = 30, -- 15
+    gameStartTimer = 5, -- 15
 
     shouldPlayIntro = false,
 
-    nightStartTimer = 2, -- 15
-    mafiaKillTimer = 2, -- 90
+    nightStartTimer = 5, -- 15
+    mafiaKillTimer = 90, -- 90
     doctorReviveTimer = 10, -- unused -- 10
-    nightEndTimer = 15, -- unused -- 15 -- time until the night ends after a mafia kill
+    nightEndTimer = 15, -- 15 -- time until the night ends after a mafia kill
 
-    discussionTimer = 2, -- 60
+    discussionTimer = 5, -- 60
     skipVoteTimer = 30, -- unused -- 20
-    votingTimer = 60, -- 30
+    votingTimer = 15, -- 30
 }
-
-function gameService.start()
-    gameService.client.pointHead:connect(function(player, targetC0, lerpValue)
-        local character = player.Character
-        if not character then
-            return
-        end
-        character.Head.Neck.C0 = character.Head.Neck.C0:Lerp(targetC0, lerpValue)
-    end)
-
-    gameService.client.pointArm:connect(function(player, shoulderC0, elbowC0, lerpValue)
-        -- add sanity check, this should only be used for voting phase (use canVote) and flashlights(?)
-        -- need to add a arm reset thingy when it's not being used anymore
-        local character = player.Character
-        if not character then
-            return
-        end
-        local rightShoulder = character.RightUpperArm.RightShoulder
-        local rightElbow = character.RightLowerArm.RightElbow
-
-        rightShoulder.C0 = rightShoulder.C0:Lerp(shoulderC0, lerpValue)
-        rightElbow.C0 = rightElbow.C0:Lerp(elbowC0, lerpValue)
-        task.spawn(function()
-            task.wait()
-			rightShoulder.Transform = CFrame.new()
-			rightElbow.Transform = CFrame.new()
-        end)
-    end)
-
-    -- testing code
-    local gameStarted = false
-    Players.PlayerAdded:Connect(function()
-        local allPlayers = Players:GetPlayers()
-        if #allPlayers >= 3 and not gameStarted then
-            gameStarted = true
-            for i = gameConfig.gameStartTimer, 0, -1 do
-                gameService.client.setTopbarText:fireAllClients({
-                    targetText = `Game starting in: {i}`,
-                    initialText = string.sub(`Game starting in: {i}`, 1, -2)
-                })
-                task.wait(1)
-            end
-            gameService.client.setTopbarText:fireAllClients()
-            gameService.startGame()
-        end
-    end)
-end
-
---[[
-### a bunch of notes im keeping for future reference since this might actually take a while lol
-
-sessions (total of 16 hours and 30 minutes as of 12/01/2025):
-    02/01/2025 - 2 hours
-        spent a lot of time just reading and comprehending whatever the hell it is im reading
-    05/01/2025 - 2 hours
-        started work on converting UI
-    08/01/2025 - 2 hours
-        conversion work
-    09/01/2025 - 1 hour
-        conversion work
-    10/01/2025 - 4 hours
-        conversion work (and going insane)
-    11/01/2025 - 3 hours and 30 minutes
-        working on game loop
-    12/01/2025 - 2 hours
-        added skipping intro and a proper countdown
-    16/01/2025 - 4 hours
-        working on game loop
-    18/01/2025 - 2 hours
-        ui stuff
-    19/01/2025 - 2 hours
-        i forgot wtf i did
-    20/01/2025 - 2 hours
-        pointing and head looking stuff
-    21/01/2025 - 2 hours
-        voting phase
-    22/01/2025 - 2 hours
-        finished pointing head and arm stuff, also added ragdolling
-
-stuff done with elaborations in top down chronological order (DD/MM/YYYY):
-    02/01/2025:
-        LocalFootsteps from StarterPack converted to footstepsController -- UNTESTED!!!
-            uses an attribute called 'Downed' on character, which at time of writing isnt implemented in rewrite
-        Bob from StarterPlayerScripts converted to bobbleContoller -- UNTESTED!!!
-            commented out some lines that deletes an instance named "Running" parented to HumanoidRootPart
-            commented out a snippet of code that makes some stuff visible when in first person (i.e: flashlight)
-                likely will want to move to a different controller, or turn bobbleController into a firstPersonController of sorts
-    05/01/2025:
-        Added uiController
-            will be used to initialize and enable/disable all UI because I'm too lazy to give them each a controller
-        AlphaWarning UI converted
-            it's literally just text
-        Death UI converted
-            has working animations, which is also connected to playDeathCutscene event in gameService
-    08/01/2025:
-        Modified uiController to allow for props to be changed via a signal
-        Implemented Fade and WitchTimer
-        Added IntroController -- a bit untested!!!
-            Currently only has the role explanation intros
-    09/01/2025:
-        Added Topbar
-            Typewriter effect and sound included
-    10/01/2025:
-        Updated uiController to support DisplayOrder
-        Updated Topbar to support duration and easings
-        Updated Fade to support duration and easings
-        Added mapIntroCutscene to introController
-            this singlehandedly took me like 2 hours because:
-                im stupid
-                whoever made this is stupid
-                whoever made this is a genius
-                the typewriter in the old code was actually asynchronous, which meant it contributed to the delay
-                    this isn't a bad thing though, the effect of this delay is almost magical
-                    well except for the fact this took me an hour to figure out because im stupid
-            mapIntroCutscene is virtually identical to the old version
-        Updated introController in some places to better emulate the old version, while keeping the refactored and rewritten aspect
-    11/01/2025:
-        Created roleAssigner
-            new version should be much better and much more future proof, as well as making it easier to customize later on when admin panels are added
-        Updated startGame so it'll assign roles using roleAssigner
-        Added syncing players loading into the game after the intro cutscene, will require further testing to see if it needs to be improved
-    12/01/2025:
-        Added skipping intro with majority
-    16/01/2025:
-        game loop prototype
-            added events
-                server -> client
-                    setTopbarText
-                    setFadeProperty
-                    countdownTimer
-                    toggleAudio
-                client -> server
-                    votePlayer
-                    skipVote
-            added properties
-                gamePhase
-                lightsToggled
-                chatToggled
-                firstPersonForced
-                canVote
-        most of these might be rewritten but these will be the initial ideas basically
-
-all roles implemented pre-rewrite (has reference code):
-    Civilian
-        Survive the night. Cooperate with other innocent players to figure out who the Mafia may be.
-        Color3.fromRGB(36, 156, 48)
-    Detainer
-        Cuff a player and they won't be present until the next night. Will you cuff a Mafia, or a Civilian?
-        Color3.fromRGB(100, 215, 190)
-    Detective
-        You will obtain police reports at the end of each night. One of the players close to the deceased body may be one of the Mafias.
-        Color3.fromRGB(211, 109, 0)
-    Doctor
-        Heal players who get attacked by the Mafia. Be quick though, they don't have long to live.
-        Color3.fromRGB(29, 162, 205)
-    Jester
-        Fool everyone into believing you're the Mafia and you'll be able to strike your revenge.
-        Color3.fromRGB(151, 32, 37)
-    Mafia
-        Eliminate all Civilians as discreetly as possible without exposing yourself to any remaining players.
-        Color3.fromRGB(151, 32, 37)
-    Vigilante
-        Eliminate who you suspect the Mafia is as soon as possible. One wrong shot, and you go down too.
-        Color3.fromRGB(104, 120, 208)
-    Witch
-        Curse a player during the night to prevent them from talking until the next night begins.
-        Color3.fromRGB(100, 215, 190)
-
-game phases:
-    Intermission
-        game hasnt even started at this point
-    NightIntermission (15 seconds)
-        countdown timer for night time, should be a trigger for first person
-    Night
-        it's night time, chats are off, lights are dimmed and relevant roles will be given their abilities
-    DayIntermission
-        The death cutscene will play for 9 seconds
-        whoDiedMafia audio will play
-        Chat will turn ON
-        Everyone's screen will show the corpse of the player on the floor, slowly zooming in above the player who died
-        '[Player Name] died tonight.' (3 seconds)
-        'Cause of Death: [Gunshot/Knife Wound]' (3 seconds)
-        'Found by: [Player Name]' (3 seconds) (If the body wasn"t found by anyone, it will just say 'No one found the body.')
-    Discussion
-        can be paused by relevant role active abilities
-    Role
-        might add this entirely different phase for just role cutscenes?
-    Voting
-        no roles should be able to have active abilities at this phase
-        people can vote for a specific player or skip
-            discuss the idea of doing it similarly to town of salem, where you need a majority
-    VoteCutscene
-        cutscene stuff lolool refer to design doc
-    Judge
-        should be activated in a tie and if the judge is available
-
-
-removed features that should be brought back or otherwise superseded
-    initialize function
-        removed a snippet of code parenting all characters to a folder named 'Players'
-        removed a sizable snippet of code related to doors
-        removed 'Configuration' instance from map
-            attributes it's assigned (surprisingly only 2):
-                SkippedInstructions
-                MapName
-        removed spawn() from spawnLocation finder thing, not sure why or if it was needed
-
-priority todo list:
-    work on game loop to at minimum support the following: (expecting this to take about 5 hours if im not completely braindead)
-        day/night cycle
-            create a framework to easily implement game mechanics with
-            lighting should be dimmed or brightened accordingly to test this a little
-        voting system
-        mafia killing mechanic
-        doing the above is already sufficient for testing and first impressions
-            makes it much easier to implement any and all future mechanics if this point can be reached
-    convert old first person system into a controller (1 hour)
-    flashlights (1 hour)
-    night vision (1 hour)
-
-todo list:
-    add ragdoll for dead people
-    convert FootstepTracking in StarterPlayerScripts
-    convert UI in StarterGui into react to make it easier to manage
-            should be noted that most of these might get replaced because they're really (really) bad
-        detain
-        gameOver
-        mutedSign
-        Grain
-        gamemodevote
-        mafiavote
-        skipinstructions
-        spectator
-        detectiveUI
-        silence
-]]
 
 local function countdownCoroutineInit(seconds, increment, callback, cleanup)
     local finishedEvent = Instance.new("BindableEvent")
@@ -325,7 +94,7 @@ local function countdownCoroutineInit(seconds, increment, callback, cleanup)
     coroutine.resume(coro)
     return function()
         if coroutine.status(coro) == "dead" then
-            return 0
+            return -1
         end
         coroutine.close(coro)
         if cleanup then
@@ -338,13 +107,42 @@ end
 local function getPlayers(allPlayersInfo, callback)
     local players = {}
     for userId, playerInfo in allPlayersInfo do
-        print(userId, playerInfo)
         if callback(userId, playerInfo) then
             table.insert(players, Players:GetPlayerByUserId(userId))
         end
     end
-    print(players)
     return players
+end
+
+local function setTopbarTextWithTick(targetPlayers, text)
+    if targetPlayers == "all" then
+        gameService.client.setTopbarText:fireAllClients({
+            targetText = text,
+            initialText = #text == 0 and "" or string.sub(text, 1, -2)
+        })
+    else
+        gameService.client.setTopbarText:fireClients(targetPlayers, {
+            targetText = text,
+            initialText = #text == 0 and "" or string.sub(text, 1, -2)
+        })
+    end
+end
+
+function gameService.start()
+    -- testing code
+    local gameStarted = false
+    gameService.client.gameLoaded:connect(function(player)
+        local allPlayers = Players:GetPlayers()
+        if (#allPlayers >= 3 and not gameStarted) or (player.UserId > 0 and not gameStarted) then
+            gameStarted = true
+            for i = gameConfig.gameStartTimer, 0, -1 do
+                setTopbarTextWithTick("all", `Game starting in: {i}`)
+                task.wait(1)
+            end
+            gameService.client.setTopbarText:fireAllClients()
+            gameService.startGame()
+        end
+    end)
 end
 
 function gameService.assignRoles(participatingPlayers)
@@ -352,7 +150,7 @@ function gameService.assignRoles(participatingPlayers)
     if #participatingPlayers == 1 and RunService:IsStudio() then
         assignedRoles = roleAssigner.assignRoles({
             roles = {
-                default = {"civilian"}
+                default = {"mafia"}
             }
         }, participatingPlayers)
     elseif #participatingPlayers < 3 then
@@ -390,9 +188,9 @@ function gameService.assignRoles(participatingPlayers)
         assignedRoles = roleAssigner.assignRoles({
             roles = {
                 guaranteed = {
-                    mafia = 1,
+                    mafia = 2,
                     doctor = 1,
-                    detective = 1
+                    detective = nil
                 },
                 special = {
                     detainer = {
@@ -419,7 +217,11 @@ function gameService.assignRoles(participatingPlayers)
     return assignedRoles
 end
 
-function gameService.NightPhase(allPlayersInfo, spawnLocations)
+function gameService.killPlayer()
+    
+end
+
+function gameService.NightPhase(phasesData, allPlayersInfo, spawnLocations)
     --[[
     entry actions
         teleport all players to random spawnLocations
@@ -458,37 +260,79 @@ function gameService.NightPhase(allPlayersInfo, spawnLocations)
         easing = ReactSpring.easings.easeInQuad
     })
     for i = gameConfig.nightStartTimer, 0, -1 do
-        gameService.client.setTopbarText:fireAllClients({
-            targetText = `Night starts in {i}`,
-            initialText = string.sub(`Night starts in {i}`, 1, -2)
-        })
+        setTopbarTextWithTick("all", `Night starts in {i}`)
         task.wait(1)
     end
     gameService.client.setTopbarText:fireAllClients(nil)
-    gameService.client.lightsToggled:set(false)
+    -- gameService.client.lightsToggled:set(false)
     gameService.client.chatToggled:set(false)
-
+    -- turn on flashlights pointing
+    pointingService.setCanPointArm:Fire(true)
+    
     -- phase actions
     -- allow relevant roles to use their abilities
+    gameService.client.abilitiesEnabled:set(true)
+    
     local phaseFinished = Instance.new("BindableEvent")
     local allMafia = getPlayers(allPlayersInfo, function(_, playerInfo)
         return playerInfo.role == "mafia"
     end)
+    local deaths = {}
 
     -- i hope this works (it's probably not gonna work) (it worked)
     local mafiaCountdownCancel = countdownCoroutineInit(gameConfig.mafiaKillTimer, 1, function(i)
-        gameService.client.countdownTimer:fireClients(allMafia, i)
+        setTopbarTextWithTick(allMafia, `Eliminate a player within {i} seconds.`)
     end, function(cancelled)
-        gameService.client.countdownTimer:fireClients(allMafia, nil)
         if cancelled then
             return
         end
+        setTopbarTextWithTick(allMafia, "")
         phaseFinished:Fire()
     end)
-    -- if a mafia kills someone, stop the previous timer and start a 15 second timer which skips to clean up after reaching 0
+    local killCountdownCancel
+
+    -- could probably get refactored
+    local killPlayerConnection = gameService.killPlayer:Connect(function(killer, victim, reason)
+        local killerInfo = allPlayersInfo[killer.UserId]
+        local victimInfo = allPlayersInfo[victim.UserId]
+        if not victimInfo.alive or victimInfo.downed then
+            return
+        end
+        if killerInfo.role == "mafia" and killCountdownCancel then
+            return
+        end
+        if mafiaCountdownCancel() <= -1 then
+            return
+        end
+        victimInfo.downed = true
+        -- TODO: if they're not mafia they should just straight up die lol
+        if killerInfo.role == "mafia" then
+            victim.Character:SetAttribute("Downed", true)
+        end
+        ragdollService.setRagdoll:Fire(victim.Character, true)
+        gameService.client.firstPersonForced:setForClient(victim, false)
+        deaths[victim.UserId] = { -- TODO: of course remove this if they're revived at the end
+            killer = killer.UserId,
+            reason = reason
+        }
+        -- TODO: figure out how to properly 'kill' someone off the game
+        -- also add spectating for dead players
+        gameService.playersInfo:set(allPlayersInfo)
+        if killerInfo.role == "mafia" then
+            killCountdownCancel = countdownCoroutineInit(gameConfig.nightEndTimer, 1, function(i)
+                setTopbarTextWithTick(allMafia, `The night will end in {i} seconds.`)
+            end, function()
+                setTopbarTextWithTick(allMafia, "")
+                phaseFinished:Fire()
+            end)
+        end
+    end)
 
     phaseFinished.Event:Wait()
 
+    killPlayerConnection:Disconnect()
+    gameService.client.abilitiesEnabled:set(false)
+    pointingService.setCanPointArm:Fire(false)
     -- clean up
     gameService.client.setFadeProperty:fireAllClients({
         transparency = 0,
@@ -496,9 +340,12 @@ function gameService.NightPhase(allPlayersInfo, spawnLocations)
         easing = ReactSpring.easings.easeOutQuad
     })
     task.wait(1)
+    return {
+        deaths = deaths
+    }
 end
 
-function gameService.DayPhase(allPlayersInfo)
+function gameService.DayPhase(phasesData, allPlayersInfo)
     --[[
     entry actions
         lights are turned back on
@@ -565,7 +412,7 @@ function gameService.DayPhase(allPlayersInfo)
     task.wait(1)
 end
 
-function gameService.DiscussionPhase(allPlayersInfo)
+function gameService.DiscussionPhase(phasesData, allPlayersInfo)
     --[[
     entry actions
         fade back in
@@ -590,6 +437,7 @@ function gameService.DiscussionPhase(allPlayersInfo)
     })
     task.wait(1)
     gameService.client.chatToggled:set(true)
+    gameService.client.abilitiesEnabled:set(true)
     gameService.client.firstPersonForced:set(false)
     local randomDiscussionSound = SoundService[`discussionMusic{math.random(1,3)}`]
     gameService.client.toggleAudio:fireAllClients({
@@ -607,13 +455,9 @@ function gameService.DiscussionPhase(allPlayersInfo)
     repeat
         local breakLoopEvent = Instance.new("BindableEvent")
         local discussionCountdownCancel = countdownCoroutineInit(secondsToDiscuss, 1, function(i)
-            gameService.client.countdownTimer:fireAllClients(i)
-            gameService.client.setTopbarText:fireAllClients({
-                targetText = `Discuss who you think the Mafia is. ({i})`,
-                initialText = string.sub(`Discuss who you think the Mafia is. ({i})`, 1, -2)
-            })
+            setTopbarTextWithTick("all", `Discuss who you think the Mafia is. ({i})`)
         end, function(cancelled)
-            gameService.client.countdownTimer:fireAllClients(nil)
+            setTopbarTextWithTick("all", "")
             breakLoopEvent:Fire()
             if cancelled then
                 return
@@ -625,7 +469,7 @@ function gameService.DiscussionPhase(allPlayersInfo)
         vigilanteInterruptConnection = gameService.vigilanteInterrupt:Connect(function(player)
             print(`{player.Name} (probably vigilante) is interrupting discussion`)
             secondsToDiscuss = discussionCountdownCancel()
-            if secondsToDiscuss <= 0 then
+            if secondsToDiscuss <= -1 then
                 discussionFinished = true
                 breakLoopEvent:Fire()
                 return
@@ -643,6 +487,7 @@ function gameService.DiscussionPhase(allPlayersInfo)
 
     -- clean up
     -- all roles should have their abilities disabled at this point
+    gameService.client.abilitiesEnabled:set(false)
     gameService.client.setTopbarText:fireAllClients(nil)
     gameService.client.toggleAudio:fireAllClients({
         sound = randomDiscussionSound,
@@ -652,7 +497,7 @@ function gameService.DiscussionPhase(allPlayersInfo)
     })
 end
 
-function gameService.VotingPhase(allPlayersInfo)
+function gameService.VotingPhase(phasesData, allPlayersInfo)
     --[[
     entry actions
         topbar should say "Vote on who you believe the Mafia is."
@@ -693,7 +538,7 @@ function gameService.VotingPhase(allPlayersInfo)
 
     -- phase actions
     gameService.client.canVote:set(true)
-    print(gameService.client.canVote:get())
+    pointingService.setCanPointArm:Fire(true)
 
     local votingPhaseFinished = Instance.new("BindableEvent")
 
@@ -723,13 +568,9 @@ function gameService.VotingPhase(allPlayersInfo)
     end)
 
     local votingCountdownCancel = countdownCoroutineInit(gameConfig.votingTimer, 1, function(i)
-        gameService.client.countdownTimer:fireAllClients(i)
-        gameService.client.setTopbarText:fireAllClients({
-            targetText = `Vote on who you believe the Mafia is. ({i})`,
-            initialText = string.sub(`Vote on who you believe the Mafia is. ({i})`, 1, -2)
-        })
+        setTopbarTextWithTick("all", `Vote on who you believe the Mafia is. ({i})`)
     end, function()
-        gameService.client.countdownTimer:fireAllClients(nil)
+        setTopbarTextWithTick("all", "")
         votingPhaseFinished:Fire()
     end)
 
@@ -739,10 +580,11 @@ function gameService.VotingPhase(allPlayersInfo)
         end
     end)
 
-    print('adfjhnaisfh')
     votingPhaseFinished.Event:Wait()
 
     gameService.client.canVote:set(false)
+
+    pointingService.setCanPointArm:Fire(false)
 
     local talliedVotes = {}
     -- tally votes
@@ -845,10 +687,18 @@ function gameService.startGame()
         playersSkippedIntro = 0,
         participatingPlayers = 0
     })
+    gameService.client.setFadeProperty:fireAllClients({
+        transparency = 0,
+        duration = 1,
+        easing = ReactSpring.easings.easeOutQuad
+    })
+
+    -- waiting for fading to complete
+    task.wait(1)
 
     local spawnLocations = {}
 	local map = Maps[math.random(1, #Maps)]:Clone()
-	map = ServerStorage.MAPS.Motel:Clone() -- test code for getting a specific map lol, should make a debug config instead
+	map = ReplicatedStorage.MAPS.Library:Clone() -- test code for getting a specific map lol, should make a debug config instead
     map.Name = "Map"
     map.Parent = workspace
 
@@ -873,20 +723,54 @@ function gameService.startGame()
 
 	local assignedRoles = gameService.assignRoles(participatingPlayers)
 
+    local allPlayersInfo = {}
+
+    for userId, role in assignedRoles do
+        allPlayersInfo[userId] = {
+            role = role,
+            alive = true,
+            downed = false,
+        }
+    end
+
+    gameService.client.sendMapDescendantsCount:fireAllClients(#map:GetDescendants())
+
+    gameService.client.setTopbarText:fireAllClients({
+        targetText = "Loading map..."
+    })
+
+    local loadedPlayers = {}
+    local allPlayersLoadedEvent = Instance.new("BindableEvent")
+    local mapLoadedConnection
+    mapLoadedConnection = gameService.client.mapLoaded:connect(function(player)
+        if table.find(participatingPlayers, player.UserId) and not table.find(loadedPlayers, player.UserId) then
+            table.insert(loadedPlayers, player.UserId)
+        end
+        print(#participatingPlayers, #loadedPlayers)
+        if #participatingPlayers == #loadedPlayers then
+            mapLoadedConnection:Disconnect()
+            allPlayersLoadedEvent:Fire()
+        end
+    end)
+
+    allPlayersLoadedEvent.Event:Wait()
+
+    gameService.client.setTopbarText:fireAllClients(nil)
+
     if gameConfig.shouldPlayIntro then
         gameService.gameIntro(assignedRoles, participatingPlayers)
     end
 
     gameService.client.gameStarted:set(true)
 
-    local allPlayersInfo = {}
+    gameService.client.setFadeProperty:fireAllClients({
+        transparency = 1,
+        duration = 1,
+        easing = ReactSpring.easings.easeOutQuad
+    })
 
-    for userId, role in assignedRoles do
-        allPlayersInfo[userId] = {
-            role = role,
-            alive = true
-        }
-    end
+    -- TODO: update playersInfo on death etc
+    gameService.playersInfo:set(allPlayersInfo)
 
     local gamePhases = {
         "Night",
@@ -895,17 +779,18 @@ function gameService.startGame()
         "Voting"
     }
 
+    local phasesData = {}
     while true do
         for _, phase in gamePhases do
             gameService.client.gamePhase:set(phase)
             if phase == "Night" then
-                gameService.NightPhase(allPlayersInfo, spawnLocations)
+                phasesData.night = gameService.NightPhase(phasesData, allPlayersInfo, spawnLocations)
             elseif phase == "Day" then
-                gameService.DayPhase(allPlayersInfo)
+                phasesData.day = gameService.DayPhase(phasesData, allPlayersInfo)
             elseif phase == "Discussion" then
-                gameService.DiscussionPhase(allPlayersInfo)
+                phasesData.discussion = gameService.DiscussionPhase(phasesData, allPlayersInfo)
             elseif phase == "Voting" then
-                gameService.VotingPhase(allPlayersInfo)
+                phasesData.voting = gameService.VotingPhase(phasesData, allPlayersInfo)
             end
         end
     end

@@ -6,7 +6,7 @@ local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
 
 local shared = ReplicatedStorage.shared
 local serviceUtil = require(shared.utilities.serviceUtil)
-local gameService = serviceUtil.service("gameService")
+local pointingService = serviceUtil.service("pointingService")
 
 local cameraController = {}
 
@@ -19,7 +19,10 @@ function cameraController.updateBobbleEffect()
 	if not character then
 		return
 	end
-	local humanoid = character:WaitForChild("Humanoid")
+	local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid then
+        return
+    end
 
 	local mouse = LocalPlayer:GetMouse()
 
@@ -64,7 +67,7 @@ function cameraController.updateBobbleEffect()
                 0
             )
             character.Head.Neck.C0 = character.Head.Neck.C0:Lerp(targetC0, 0.3)
-            gameService.pointHead:fireServer(targetC0, 0.3)
+            pointingService.pointHead:fireServer(targetC0, 0.3)
         end
 	end
 

@@ -6,9 +6,10 @@ function soundController.start()
 
 end
 
-function soundController.play2DAudio(sound: Sound, playing: boolean, duration: number?, volume: number?)
+function soundController.play2DAudio(sound: Sound, playing: boolean, duration: number?, volume: number?, loop: boolean?)
     local tween
     if duration then
+        sound.Looped = loop or sound.Looped
         sound.Volume = volume or if playing then 0.5 else 0
         tween = TweenService:Create(sound, TweenInfo.new(duration), {Volume = volume or if playing then 0.5 else 0})
     end

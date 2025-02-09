@@ -41,7 +41,7 @@ function footstepsController.getHumanoidMaterial(humanoid)
 end
 
 function footstepsController.characterAdded(character)
-	local humanoid = character.Humanoid
+	local humanoid = character:WaitForChild("Humanoid")
 	local walking
 
 	humanoid.Running:Connect(function(speed)

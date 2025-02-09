@@ -1,4 +1,5 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local StarterGUI = game:GetService("StarterGui")
 local Players = game:GetService("Players")
 
@@ -13,13 +14,17 @@ local uiController = require(controllers.uiController)
 local serviceUtil = require(shared.utilities.serviceUtil)
 local gameService = serviceUtil.service("gameService")
 
+local assets = ReplicatedStorage.assets
+local voteBillboard = assets.voteBillboard
+
 local gameController = {}
 
 function gameController.start()
+    gameService.gameLoaded:fireServer()
     task.spawn(gameController.disableResetButton)
+    gameService.sendMapDescendantsCount:connect(gameController.onMapDescendantsCount)
     gameService.setTopbarText:connect(gameController.onSetTopbarText)
     gameService.setFadeProperty:connect(gameController.onSetFadeProperty)
-    gameService.countdownTimer:connect(gameController.onCountdownTimer)
     gameService.toggleAudio:connect(gameController.onToggleAudio)
 
     gameService.gamePhase:observe(gameController.onGamePhaseUpdate)
@@ -27,6 +32,21 @@ function gameController.start()
     gameService.lightsToggled:observe(gameController.onLightsToggledUpdate)
     gameService.chatToggled:observe(gameController.onChatToggledUpdate)
     gameService.firstPersonForced:observe(gameController.onFirstPersonForcedUpdate)
+    gameService.talliedVotes:observe(gameController.onTalliedVotes)
+end
+
+function gameController.onMapDescendantsCount(descendantsCount)
+    local connection
+    connection = RunService.RenderStepped:Connect(function()
+        local map = workspace:FindFirstChild("Map")
+        if not map then
+            return
+        end
+        if descendantsCount <= #map:GetDescendants() then
+            connection:Disconnect()
+            gameService.mapLoaded:fireServer()
+        end
+    end)
 end
 
 function gameController.disableResetButton()
@@ -54,16 +74,13 @@ function gameController.onSetFadeProperty(props)
     uiController:setFadeProps(props.transparency, props.duration, props.easing)
 end
 
-function gameController.onCountdownTimer(props)
-    -- print(props)
-end
-
 function gameController.onToggleAudio(props)
     local sound = props.sound
     local playing = props.playing
     local duration = props.duration
     local volume = props.volume
-    soundController.play2DAudio(sound, playing, duration, volume)
+    local loop = props.loop
+    soundController.play2DAudio(sound, playing, duration, volume, loop)
     -- print(sound)
 end
 
@@ -108,19 +125,17 @@ function gameController.onLightsToggledUpdate(newLightsToggled)
                         end
                     end)
                 end
-            else
-                if light:IsA("Beam") then
-                    local oldtransparency = light.Transparency
-                    light:SetAttribute("oldtransparency", oldtransparency)
-                    task.spawn(function()
-                        task.wait(math.random(0, 10)/50)
-                        light.Transparency = NumberSequence.new(1)
-                        task.wait(math.random(0, 10)/50)
-                        light.Transparency = oldtransparency
-                        task.wait(math.random(0, 10)/50)
-                        light.Transparency = NumberSequence.new(1)
-                    end)
-                end
+            elseif light:IsA("Beam") then
+                local oldtransparency = light.Transparency
+                light:SetAttribute("oldtransparency", oldtransparency)
+                task.spawn(function()
+                    task.wait(math.random(0, 10)/50)
+                    light.Transparency = NumberSequence.new(1)
+                    task.wait(math.random(0, 10)/50)
+                    light.Transparency = oldtransparency
+                    task.wait(math.random(0, 10)/50)
+                    light.Transparency = NumberSequence.new(1)
+                end)
             end
         end
     else
@@ -141,16 +156,14 @@ function gameController.onLightsToggledUpdate(newLightsToggled)
                         end
                     end)
                 end
-            else
-                if light:IsA("Beam") then
-                    local oldtransparency = light:GetAttribute("oldtransparency")
-                    if not oldtransparency then
-                        continue
-                    end
-                    task.spawn(function()
-                        light.Transparency = oldtransparency
-                    end)
+            elseif light:IsA("Beam") then
+                local oldtransparency = light:GetAttribute("oldtransparency")
+                if not oldtransparency then
+                    continue
                 end
+                task.spawn(function()
+                    light.Transparency = oldtransparency
+                end)
             end
         end
     end
@@ -169,6 +182,39 @@ function gameController.onFirstPersonForcedUpdate(newFirstPersonForced)
         LocalPlayer.CameraMode = Enum.CameraMode.Classic
         LocalPlayer.CameraMaxZoomDistance = 30
         LocalPlayer.CameraMinZoomDistance = 10
+    end
+end
+
+function gameController.onTalliedVotes(newTalliedVotes, oldTalliedVotes)
+    if oldTalliedVotes then
+        for userId, _ in oldTalliedVotes.votes do
+            local player = Players:GetPlayerByUserId(userId)
+            local character = player.Character
+            if not character then
+                continue
+            end
+            local billboard = character:FindFirstChild("voteBillboard")
+            if billboard then
+                billboard:Destroy()
+            end
+        end
+    end
+    if not newTalliedVotes then
+        return
+    end
+    for userId, votes in newTalliedVotes.votes do
+        local player = Players:GetPlayerByUserId(userId)
+        local character = player.Character
+        if not character then
+            continue
+        end
+        local billboard = character:FindFirstChild("voteBillboard")
+        if billboard then
+            billboard:Destroy()
+        end
+        billboard = voteBillboard:Clone()
+        billboard.Votes.Text = votes
+        billboard.Parent = character
     end
 end
 

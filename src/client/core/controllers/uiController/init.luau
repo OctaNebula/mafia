@@ -42,13 +42,17 @@ local uiList = {
 		ignoreGuiInset = true
 	},
 	{
-		uiName = "Fade",
+        uiName = "Fade",
 		ignoreGuiInset = true
 	},
 	{
 		uiName = "MafiaVote",
 		ignoreGuiInset = true
 	},
+    {
+        uiName = "Spectate",
+        ignoreGuiInset = true
+    },
 }
 
 local uiRoots = {}

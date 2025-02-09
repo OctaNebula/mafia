@@ -61,7 +61,7 @@ function introController.start()
 
 		workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
 
-		uiController:setFadeProps(1, 1, ReactSpring.easings.easeInQuad)
+		-- uiController:setFadeProps(1, 1, ReactSpring.easings.easeInQuad)
 	end)
 end
 
@@ -121,6 +121,7 @@ function introController.explainRulesCutscene(role: string)
     description:Destroy()
 
 	currentCamera.FieldOfView = 70
+    return
 end
 
 function introController.explainRulesWitch()
@@ -131,9 +132,9 @@ function introController.explainRulesWitch()
 	local camera1 = cameraPoints:WaitForChild("Camera1")
     local mouse = LocalPlayer:GetMouse()
 
-    uiController:setFadeProps(0, 1, ReactSpring.easings.easeOutQuad)
+    -- uiController:setFadeProps(0, 1, ReactSpring.easings.easeOutQuad)
 
-	task.wait(1)
+	-- task.wait(1)
 
 	currentCamera.CameraType = Enum.CameraType.Scriptable
 	currentCamera.CFrame = camera1.CFrame

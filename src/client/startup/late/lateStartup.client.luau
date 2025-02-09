@@ -1,4 +1,5 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ContentProvider = game:GetService("ContentProvider")
 
 local clientModules = ReplicatedStorage.client
 local sharedModules = ReplicatedStorage.shared
@@ -8,6 +9,8 @@ local startupUtil = require(sharedModules.utilities.startupUtil)
 
 local CONTROLLER_STARTUP_METHOD = "start"
 local CONTROLLER_NAME_FORMAT = "Controller$"
+
+ContentProvider:PreloadAsync(ReplicatedStorage.assets:GetDescendants())
 
 serviceUtil.ensureServicesAreReplicatedAndSetup()
 

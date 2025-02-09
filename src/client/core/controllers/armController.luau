@@ -10,7 +10,7 @@ local Signal = require(sharedPackages.Signal)
 local shared = ReplicatedStorage.shared
 
 local serviceUtil = require(shared.utilities.serviceUtil)
-local gameService = serviceUtil.service("gameService")
+local pointingService = serviceUtil.service("pointingService")
 
 local solveArm = require(shared.modules.solveArm)
 
@@ -24,7 +24,9 @@ local armController = {
 function armController.start()
     local mouse = LocalPlayer:GetMouse()
 
-    local isPointing = false
+    local isPointing = {
+        armController = false
+    }
     local forcedTarget
     local lerpValue = 0.2
 
@@ -39,12 +41,20 @@ function armController.start()
         forcedTarget = newPointingTarget
     end)
 
-    armController.setIsPointing:Connect(function(newIsPointing)
-        isPointing = newIsPointing or false
+    armController.setIsPointing:Connect(function(index, newIsPointing)
+        isPointing[index] = newIsPointing or false
+        print(index, newIsPointing)
     end)
 
     RunService.RenderStepped:Connect(function()
-        if not isPointing then
+        local shouldPoint = false
+        for _, point in isPointing do
+            shouldPoint = point
+            if point then
+                break
+            end
+        end
+        if not shouldPoint then
             return
         end
         local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
@@ -62,7 +72,7 @@ function armController.start()
         
         rightShoulder.C0 = rightShoulder.C0:Lerp(shoulderC0, lerpValue)
         rightElbow.C0 = rightElbow.C0:Lerp(elbowC0, lerpValue)
-        gameService.pointArm:fireServer(shoulderC0, elbowC0, lerpValue)
+        pointingService.pointArm:fireServer(shoulderC0, elbowC0, lerpValue)
     end)
 end
 
