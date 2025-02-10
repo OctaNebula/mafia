@@ -61,7 +61,16 @@ function armController.start()
         local rightShoulder = character:WaitForChild("RightUpperArm"):WaitForChild("RightShoulder")
         local rightElbow = character:WaitForChild("RightLowerArm"):WaitForChild("RightElbow")
 
-        local target = forcedTarget or mouse.Hit.Position
+        local flashlightTarget
+        if not forcedTarget and isPointing.flashlightController then
+            local cameraCFrame = workspace.CurrentCamera.CFrame
+            -- local raycastParams = RaycastParams.new()
+            -- raycastParams.FilterType = Enum.RaycastFilterType.Include
+            -- local raycastResult = workspace:Raycast(cameraCFrame.Position, cameraCFrame.LookVector * 1000, raycastParams)
+            flashlightTarget = (cameraCFrame + cameraCFrame.LookVector * 100).Position
+        end
+
+        local target = forcedTarget or flashlightTarget or mouse.Hit.Position
 
         local shoulderCF = character.UpperTorso.CFrame * CFrame.new()
         local plane, shoulderAngle, elbowAngle = solveArm(shoulderCF, target)
