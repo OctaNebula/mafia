@@ -45,8 +45,6 @@ local function Spectate()
 
         currentCamera.CameraType = Enum.CameraType.Custom
         currentCamera.CameraSubject = character
-        LocalPlayer.CameraMinZoomDistance = 12
-        LocalPlayer.CameraMaxZoomDistance = 12
 
         setSpectatedName(character.Name)
     end
