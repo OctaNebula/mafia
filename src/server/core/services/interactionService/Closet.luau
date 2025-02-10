@@ -12,20 +12,6 @@ local animationOffsets = require(configurations.animationOffsets)
 local Closet = {}
 Closet.__index = Closet
 
-local previewAnimationsCache = {}
-
-local function createPreviewAnimation(keyframeSequence)
-    local previewAnimation = previewAnimationsCache[keyframeSequence]
-    if not previewAnimation then
-        local hashId = KeyframeSequenceProvider:RegisterKeyframeSequence(keyframeSequence)
-        local Animation = Instance.new("Animation")
-        Animation.AnimationId = hashId
-        previewAnimationsCache[keyframeSequence] = Animation
-        return Animation
-    end
-	return previewAnimation
-end
-
 function Closet.new(closet)
     local self = setmetatable({}, Closet)
     self.closet = closet
@@ -48,8 +34,16 @@ function Closet:init()
     self.closetIdleAnimation.Priority = Enum.AnimationPriority.Idle
 end
 
+function Closet:interact(player: Player)
+    local character = player.Character
+    if not self.storingCharacter then
+        self:storeCharacter(character)
+    else
+        self:unstoreCharacter(character)
+    end
+end
+
 function Closet:storeCharacter(character: Model)
-    print("sdjifgiasdjhng")
     if self.debounce then
         return
     end
@@ -79,7 +73,6 @@ function Closet:storeCharacter(character: Model)
 end
 
 function Closet:unstoreCharacter(character: Model)
-    print("sdjifgiasdjhng")
     if self.debounce then
         return
     end
