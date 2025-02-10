@@ -35,7 +35,6 @@ function spectatingService.start()
                 table.insert(newSpectatableTargets, userId)
             end
         end
-        print(newSpectatableTargets)
         spectatableTargets = newSpectatableTargets
         spectatingService.client.spectatableTargets:setForClients(spectators, table.clone(newSpectatableTargets))
     end)
