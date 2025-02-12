@@ -192,7 +192,13 @@ sessions (total of 16 hours and 30 minutes as of 12/01/2025):
         spectating works
     2/02/2025 - 2 hours
         added flashlights
-    4/02/2025 - 
+    4/02/2025-10/02/2025 - 6 hours?
+        i forgot to count honestly, dont even remember what i did exactly aside from the end date
+        interactionService and interactionController added
+    11/02/2025-12/02/2025 - 3 hours
+        cleaned up code here and there to prep for some updates
+        added animationService to preload animations for characters
+        added exclusive interactions for better control over inputs
 
 stuff done with elaborations in top down chronological order (DD/MM/YYYY):
     02/01/2025:
