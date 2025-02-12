@@ -8,7 +8,7 @@ local controllers = ReplicatedStorage.client.controllers
 local armController = require(controllers.armController)
 
 local assets = ReplicatedStorage.assets
-local animations = assets.animations
+local animations = assets.animations.player1
 local flashlightToggleAnim = animations.FlashlightToggle
 local flashlightEquipAnim = animations.FlashlightEquip
 local flashlightHoldAnim = animations.FlashlightHold
