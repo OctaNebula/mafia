@@ -17,6 +17,9 @@ local activePrompts = {}
 local activeInputs = {}
 local interactablePrompts = {}
 local allPromptDistances = {}
+local exclusiveInteraction
+
+local inputDebounce = false
 
 local interactionController = {}
 
@@ -35,13 +38,29 @@ function interactionController.start()
         interactionController.removePrompt(instance)
     end)
 
+    interactionService.exclusiveInteraction:observe(function(newExclusiveInteraction)
+        if not newExclusiveInteraction then
+            exclusiveInteraction = nil
+            interactionController.updateActionBinds()
+            return
+        end
+        exclusiveInteraction = newExclusiveInteraction
+        interactionController.updateActionBinds()
+    end)
+
     RunService.RenderStepped:Connect(function()
+        interactablePrompts = {}
+        allPromptDistances = {}
+        if exclusiveInteraction then
+            for _, promptInfo in activePrompts do
+                promptInfo.UI.Enabled = false
+            end
+            return
+        end
         local character = LocalPlayer.Character
         if not character then
             return
         end
-        interactablePrompts = {}
-        allPromptDistances = {}
         for instance, _ in activePrompts do
             local distance = (character:GetPivot().Position-instance:GetPivot().Position).Magnitude
             local promptDistanceInfo = {
@@ -69,42 +88,65 @@ function interactionController.start()
             local promptInfo = activePrompts[promptDistanceInfo.instance]
             local properties = promptInfo.properties
             local withinDistance = promptDistanceInfo.distance <= promptInfo.properties.maxDistance
-            if withinDistance and properties.input and properties.interactable then
+            local interactable = withinDistance and properties.input and properties.enabled
+            if interactable then
                 if not interactablePrompts[properties.input] then
                     interactablePrompts[properties.input] = {}
                 end
                 table.insert(interactablePrompts[properties.input], promptDistanceInfo)
             end
-            promptInfo.UI.Enabled = withinDistance
+            promptInfo.UI.Enabled = interactable
         end
     end)
 end
 
 function interactionController.handleInput(_, inputState, inputObject)
-    if inputState ~= Enum.UserInputState.End then
+    if inputDebounce or inputState ~= Enum.UserInputState.End then
         return Enum.ContextActionResult.Pass
     end
-    if not interactablePrompts[inputObject.KeyCode] then
-        return Enum.ContextActionResult.Pass
+    if exclusiveInteraction then
+        local exclusiveInputName
+        for inputName, input in exclusiveInteraction.inputs do
+            if inputObject.KeyCode == input or
+                inputObject.UserInputType == input or
+                inputObject.PlayerActions == input
+            then
+                exclusiveInputName = inputName
+                break
+            end
+        end
+        inputDebounce = true
+        interactionService.interactWith(exclusiveInteraction.instance, exclusiveInputName)
+        inputDebounce = false
+    else
+        local prompts = interactablePrompts[inputObject.KeyCode]
+        if not prompts then
+            return Enum.ContextActionResult.Pass
+        end
+        local instance = prompts[1].instance -- get closest prompt's instance
+        inputDebounce = true
+        interactionService.interactWith(instance)
+        inputDebounce = false
+        return Enum.ContextActionResult.Sink
     end
-    local instance = interactablePrompts[inputObject.KeyCode][1].instance -- get closest prompt's instance
-    local promptInfo = activePrompts[instance]
-    interactionService.interactWith(instance)
-    return Enum.ContextActionResult.Sink
 end
 
 function interactionController.updateActionBinds()
     local inputs = {}
-    for input, numberOfInputs in activeInputs do
-        if numberOfInputs > 0 then
+    if exclusiveInteraction then
+        for _, input in exclusiveInteraction.inputs do
             table.insert(inputs, input)
+        end
+    else
+        for input, numberOfInputs in activeInputs do
+            if numberOfInputs > 0 then
+                table.insert(inputs, input)
+            end
         end
     end
     if #inputs <= 0 then
-        print("Unbinded interactionController")
         ContextActionService:UnbindAction("interactionController")
     else
-        print("Binded interactionController,", table.unpack(inputs))
         ContextActionService:BindAction("interactionController", interactionController.handleInput, false, table.unpack(inputs))
     end
 end
@@ -128,7 +170,7 @@ function interactionController.setupPrompt(instance: Instance, properties)
 end
 
 function interactionController.editPrompt(instance: Instance, properties)
-    activePrompts[instance]:setProperties(properties)
+    activePrompts[instance].properties = properties
 end
 
 function interactionController.removePrompt(instance: Instance)

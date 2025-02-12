@@ -22,6 +22,7 @@ local interactionService = {
         promptEdited = network.Server.RemoteSignal.new(),
         promptRemoved = network.Server.RemoteSignal.new(),
         globalPrompts = network.Server.RemoteProperty.new({}),
+        exclusiveInteraction = network.Server.RemoteProperty.new()
     }
 }
 
@@ -40,17 +41,33 @@ function interactionService.start()
     end)
 end
 
+function interactionService.setExclusiveInteraction(player: Player, instance: Instance, inputs): boolean
+    local exclusiveInteractionProperty = interactionService.client.exclusiveInteraction
+    local exclusiveInteractionClientValue = exclusiveInteractionProperty:clientValue(player)
+    if exclusiveInteractionClientValue and exclusiveInteractionClientValue.instance ~= instance then
+        warn("An object attempted to take over exclusive interaction but was refused")
+        return false
+    end
+    if not inputs then
+        exclusiveInteractionProperty:removeForClient(player)
+        return true
+    end
+    exclusiveInteractionProperty:setForClient(player, {
+        instance = instance,
+        inputs = inputs
+    })
+    return true
+end
 
 function interactionService.setupPrompt(instance: Instance, players: {Player}?)
     initializedPrompts[instance] = {
-        handler = require(script.Closet).new(instance, interactionService.editPrompt),
+        handler = require(script.Closet).new(instance, interactionService),
         players = players,
         properties = {
             requiresDirectLineOfSight = false,
             input = Enum.KeyCode.E,
-            interactable = true,
             maxDistance = 10,
-            visible = true,
+            enabled = true,
         }
     }
     if players then
@@ -68,7 +85,7 @@ function interactionService.editPrompt(instance: Instance, newProperties: {strin
     local edited = false
     for index, property in newProperties do
         local currentProperty = prompt.properties[index]
-        if not currentProperty then
+        if currentProperty == nil then
             continue
         end
         if currentProperty ~= property then
@@ -80,11 +97,10 @@ function interactionService.editPrompt(instance: Instance, newProperties: {strin
     if not edited then
         return
     end
-    prompt.properties = newProperties
     if prompt.players then
-        interactionService.client.promptEdited:fireClients(prompt.players, instance, table.clone(newProperties))
+        interactionService.client.promptEdited:fireClients(prompt.players, instance, table.clone(prompt.properties))
     else
-        interactionService.client.promptEdited:fireAllClients(instance, table.clone(newProperties))
+        interactionService.client.promptEdited:fireAllClients(instance, table.clone(prompt.properties))
         local globalPrompts = interactionService.client.globalPrompts:get()
         globalPrompts[instance] = initializedPrompts[instance].properties
         interactionService.client.globalPrompts:set(table.clone(globalPrompts))
@@ -112,14 +128,21 @@ function interactionService.destroyAllPrompts()
     end
 end
 
-function interactionService.client.interactWith(player: Player, instance: Instance)
-    print(player, instance)
-    -- add line of sight and distance sanity checks
+function interactionService.client.interactWith(player: Player, instance: Instance, inputName: string)
+    -- TODO: add line of sight and distance sanity checks
+    local exclusiveInteraction = interactionService.client.exclusiveInteraction:clientValue(player)
     local prompt = initializedPrompts[instance]
     if prompt.players and not table.find(prompt.players, player) then
         return
     end
-    return initializedPrompts[instance].handler:interact(player)
+    local handler = initializedPrompts[instance].handler
+    if exclusiveInteraction then
+        if exclusiveInteraction.inputs[inputName] then
+            return handler[inputName](handler, player)
+        end
+        return
+    end
+    return handler:interact(player)
 end
 
 return interactionService

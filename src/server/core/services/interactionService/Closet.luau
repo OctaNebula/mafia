@@ -3,8 +3,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local animations = ReplicatedStorage.assets.animations
 local closetAnimations = animations.closet
-local dummy1Animations = animations.dummy1
-local dummy2Animations = animations.dummy2
+local player1Animations = animations.player1
+local player2Animations = animations.player2
 
 local configurations = ReplicatedStorage.shared.configurations
 local animationOffsets = require(configurations.animationOffsets)
@@ -12,92 +12,108 @@ local animationOffsets = require(configurations.animationOffsets)
 local Closet = {}
 Closet.__index = Closet
 
-function Closet.new(closet)
+function Closet.new(instance, interactionService)
     local self = setmetatable({}, Closet)
-    self.closet = closet
-    self.storingCharacter = false
+    self.storedCharacter = false
+    self.interactionService = interactionService
+    self.instance = instance
     self:init()
     return self
 end
 
 function Closet:init()
     local animationController = Instance.new("AnimationController")
-    animationController.Parent = self.closet
+    animationController.Parent = self.instance
     self.animator = Instance.new("Animator")
     self.animator.Parent = animationController
-    self.closet:AddTag("Interactable")
 
     self.closetEnterAnimation = self.animator:LoadAnimation(closetAnimations["Entering Closet"])
     self.closetEnterAnimation.Priority = Enum.AnimationPriority.Action
     self.closetIdleAnimation = self.animator:LoadAnimation(closetAnimations["Idle Closet"])
-    self.closetIdleAnimation.Looped = true
     self.closetIdleAnimation.Priority = Enum.AnimationPriority.Idle
+    self.closetIdleAnimation.Looped = true
+    self.closetExitAnimation = self.animator:LoadAnimation(closetAnimations["Exiting Closet"])
+    self.closetExitAnimation.Priority = Enum.AnimationPriority.Action
 end
 
 function Closet:interact(player: Player)
     local character = player.Character
-    if not self.storingCharacter then
+    if not character or self.debounce or self.interactionService.setExclusiveInteraction(player, self.instance, nil) == false then
+        return false
+    end
+    self.debounce = true
+    self.interactionService.editPrompt(self.instance, { enabled = false })
+    if not self.storedCharacter then
         self:storeCharacter(character)
+        self.storedCharacter = character
     else
         self:unstoreCharacter(character)
+        self.storedCharacter = false
     end
+    if not self.storedCharacter then
+        self.interactionService.editPrompt(self.instance, { enabled = true })
+    else
+        self.interactionService.setExclusiveInteraction(player, self.instance, {
+            exit = Enum.KeyCode.E
+        })
+    end
+    self.debounce = false
+    return true
+end
+
+function Closet:enter(player: Player)
+    
+end
+
+function Closet:exit(player: Player)
+    local character = player.Character
+    if not character or self.debounce or self.interactionService.setExclusiveInteraction(player, self.instance, nil) == false then
+        return false
+    end
+    print("Valid Exit input received!")
+    self.debounce = true
+    self:unstoreCharacter(character)
+    self.storedCharacter = false
+    self.interactionService.editPrompt(self.instance, { enabled = true })
+    self.debounce = false
+    return true
 end
 
 function Closet:storeCharacter(character: Model)
-    if self.debounce then
-        return
-    end
-    if self.storingCharacter then
-        self:unstoreCharacter(character)
-        return
-    end
-    self.debounce = true
-    self.storingCharacter = true
     local animator: Animator = character.Humanoid:FindFirstChildWhichIsA("Animator")
 
-    local characterEnterAnimation = animator:LoadAnimation(dummy1Animations["Entering Closet"])
+    local characterEnterAnimation = animator:LoadAnimation(player1Animations["Entering Closet"])
     characterEnterAnimation.Priority = Enum.AnimationPriority.Action
 
-    self.characterIdleAnimation = animator:LoadAnimation(dummy1Animations["Idle Closet"])
+    self.characterIdleAnimation = animator:LoadAnimation(player1Animations["Idle Closet"])
     self.characterIdleAnimation.Looped = true
     self.characterIdleAnimation.Priority = Enum.AnimationPriority.Idle
 
     character.HumanoidRootPart.Anchored = true
-    animationOffsets.closet(self.closet, character)
+    animationOffsets.closet(self.instance, character)
     characterEnterAnimation:Play()
     self.closetEnterAnimation:Play()
-    task.wait(characterEnterAnimation.Length * 0.9)
+    task.wait(self.closetEnterAnimation.Length * 0.9)
     self.characterIdleAnimation:Play()
     self.closetIdleAnimation:Play()
-    self.debounce = false
+    character.Humanoid.AutoRotate = false
 end
 
 function Closet:unstoreCharacter(character: Model)
-    if self.debounce then
-        return
-    end
-    if not self.storingCharacter then
-        self:storeCharacter(character)
-        return
-    end
-    self.debounce = true
-    self.storingCharacter = false
     local animator: Animator = character.Humanoid:FindFirstChildWhichIsA("Animator")
 
-    local characterExitAnimation = animator:LoadAnimation(dummy1Animations["Exiting Closet"])
-    local closetExitAnimation = self.animator:LoadAnimation(closetAnimations["Exiting Closet"])
+    local characterExitAnimation = animator:LoadAnimation(player1Animations["Exiting Closet"])
     characterExitAnimation.Priority = Enum.AnimationPriority.Action
-    closetExitAnimation.Priority = Enum.AnimationPriority.Action
 
     character.HumanoidRootPart.Anchored = true
-    animationOffsets.closet(self.closet, character)
+    animationOffsets.closet(self.instance, character)
     characterExitAnimation:Play()
-    closetExitAnimation:Play()
-    task.wait(characterExitAnimation.Length * 0.9)
+    self.closetExitAnimation:Play()
+    task.wait(self.closetExitAnimation.Length * 0.9)
     self.characterIdleAnimation:Stop()
     self.closetIdleAnimation:Stop()
     character.HumanoidRootPart.Anchored = false
-    self.debounce = false
+    character.Humanoid.AutoRotate = true
 end
 
 return Closet
