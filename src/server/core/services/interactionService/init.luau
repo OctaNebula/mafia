@@ -52,6 +52,27 @@ function interactionService.setExclusiveInteraction(player: Player, instance: In
         exclusiveInteractionProperty:removeForClient(player)
         return true
     end
+    local inputsArray = {}
+    for _, newInputs in inputs do
+        local newInputsArray = {}
+        for _, input in newInputs do
+            if typeof(input) == "table" then
+                for _, inputChild in input do
+                    if table.find(newInputsArray, inputChild) then
+                        error("Duplicate inputs are not allowed for exclusiveInteractions")
+                    end
+                    table.insert(newInputsArray, inputChild)
+                    table.insert(inputsArray, inputChild)
+                end
+                continue
+            end
+            if table.find(inputsArray, input) then
+                error("Duplicate inputs are not allowed for exclusiveInteractions")
+            end
+            table.insert(newInputsArray, input)
+            table.insert(inputsArray, input)
+        end
+    end
     exclusiveInteractionProperty:setForClient(player, {
         instance = instance,
         inputs = inputs
@@ -136,13 +157,7 @@ function interactionService.client.interactWith(player: Player, instance: Instan
         return
     end
     local handler = initializedPrompts[instance].handler
-    if exclusiveInteraction then
-        if exclusiveInteraction.inputs[inputName] then
-            return handler[inputName](handler, player)
-        end
-        return
-    end
-    return handler:interact(player)
+    return handler:interact(player, inputName)
 end
 
 return interactionService

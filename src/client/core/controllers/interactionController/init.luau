@@ -101,32 +101,68 @@ function interactionController.start()
 end
 
 function interactionController.handleInput(_, inputState, inputObject)
-    if inputDebounce or inputState ~= Enum.UserInputState.End then
+    if inputDebounce then
         return Enum.ContextActionResult.Pass
     end
     if exclusiveInteraction then
+        if inputState ~= Enum.UserInputState.Begin and inputState ~= Enum.UserInputState.End then
+            return Enum.ContextActionResult.Pass
+        end
+        local inputs = table.clone(exclusiveInteraction.inputs)
+        local beganInputs = inputs.began or {}
+        local endedInputs = inputs.ended or {}
+
         local exclusiveInputName
-        for inputName, input in exclusiveInteraction.inputs do
-            if inputObject.KeyCode == input or
-                inputObject.UserInputType == input or
-                inputObject.PlayerActions == input
-            then
+
+        for inputName, input in if inputState == Enum.UserInputState.Begin then beganInputs else endedInputs do
+            if typeof(input) == "table" then
+                for _, inputChild in input do
+                    if inputObject.KeyCode == inputChild or inputObject.UserInputType == inputChild then
+                        exclusiveInputName = inputName
+                        break
+                    end
+                end
+            end
+            if inputObject.KeyCode == input or inputObject.UserInputType == input then
                 exclusiveInputName = inputName
                 break
             end
         end
-        inputDebounce = true
-        interactionService.interactWith(exclusiveInteraction.instance, exclusiveInputName)
-        inputDebounce = false
+
+        if not exclusiveInputName then
+            return Enum.ContextActionResult.Pass
+        end
+
+        task.spawn(function()
+            inputDebounce = true
+            interactionService.interactWith(exclusiveInteraction.instance, exclusiveInputName) -- yields
+            inputDebounce = false
+        end)
+
+        if table.find({
+            Enum.KeyCode.W,
+            Enum.KeyCode.A,
+            Enum.KeyCode.S,
+            Enum.KeyCode.D,
+        }, inputObject.KeyCode) then
+            return Enum.ContextActionResult.Pass
+        end
+
+        return Enum.ContextActionResult.Sink
     else
+        if inputState ~= Enum.UserInputState.End then
+            return Enum.ContextActionResult.Pass
+        end
         local prompts = interactablePrompts[inputObject.KeyCode]
         if not prompts then
             return Enum.ContextActionResult.Pass
         end
         local instance = prompts[1].instance -- get closest prompt's instance
-        inputDebounce = true
-        interactionService.interactWith(instance)
-        inputDebounce = false
+        task.spawn(function()
+            inputDebounce = true
+            interactionService.interactWith(instance) -- yields
+            inputDebounce = false
+        end)
         return Enum.ContextActionResult.Sink
     end
 end
@@ -134,8 +170,25 @@ end
 function interactionController.updateActionBinds()
     local inputs = {}
     if exclusiveInteraction then
-        for _, input in exclusiveInteraction.inputs do
-            table.insert(inputs, input)
+        for _, newInputs in exclusiveInteraction.inputs do
+            for _, input in newInputs do
+                local newInputsArray = {}
+                if typeof(input) == "table" then
+                    for _, inputChild in input do
+                        if table.find(newInputsArray, inputChild) then
+                            error("Duplicate inputs are not allowed for exclusiveInteractions")
+                        end
+                        table.insert(newInputsArray, inputChild)
+                        table.insert(inputs, inputChild)
+                    end
+                    continue
+                end
+                if table.find(newInputsArray, input) then
+                    error("Duplicate inputs are not allowed for exclusiveInteractions")
+                end
+                table.insert(newInputsArray, input)
+                table.insert(inputs, input)
+            end
         end
     else
         for input, numberOfInputs in activeInputs do
