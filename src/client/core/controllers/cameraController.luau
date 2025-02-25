@@ -7,6 +7,9 @@ local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
 local shared = ReplicatedStorage.shared
 local serviceUtil = require(shared.utilities.serviceUtil)
 local pointingService = serviceUtil.service("pointingService")
+local gameService = serviceUtil.service("gameService")
+
+local cameraLockedToHead
 
 local cameraController = {}
 
@@ -26,10 +29,17 @@ function cameraController.updateBobbleEffect()
 
 	local mouse = LocalPlayer:GetMouse()
 
-	local camera = workspace.CurrentCamera
+	local camera: Camera = workspace.CurrentCamera
+    local head = character:FindFirstChild("Head")
+    local lockedToHead = gameService.cameraLockedToHead:get()
 
 	local currentTime = tick()
-	if LocalPlayer.CameraMode == Enum.CameraMode.LockFirstPerson then
+    if lockedToHead == true and head then
+        humanoid.CameraOffset = Vector3.zero
+        camera.CameraType = Enum.CameraType.Scriptable
+        camera.CFrame = head.CFrame
+	elseif LocalPlayer.CameraMode == Enum.CameraMode.LockFirstPerson then
+        camera.CameraType = Enum.CameraType.Custom
 		if humanoid.MoveDirection.Magnitude > 0 then
 			local multiplier = 0.2
 			local magnitude = 5
@@ -52,8 +62,8 @@ function cameraController.updateBobbleEffect()
 	end
 
 	-- Setting head direction
-	if character:FindFirstChild("Head") then
-        if not humanoid.PlatformStand then -- can change condition to not being dead, so they can 'look around' while downed
+	if head then
+        if lockedToHead == false and not humanoid.PlatformStand then -- can change condition to not being dead, so they can 'look around' while downed
             local target
             if LocalPlayer.CameraMode == Enum.CameraMode.LockFirstPerson then
                 target = character.UpperTorso.CFrame:toObjectSpace(workspace.CurrentCamera.CFrame).lookVector
@@ -66,7 +76,11 @@ function cameraController.updateBobbleEffect()
                 math.rad(0) - math.asin(target.X),
                 0
             )
-            character.Head.Neck.C0 = character.Head.Neck.C0:Lerp(targetC0, 0.3)
+            head.Neck.C0 = head.Neck.C0:Lerp(targetC0, 0.3)
+            pointingService.pointHead:fireServer(targetC0, 0.3)
+        else
+            local targetC0 = CFrame.new(0, 0.8, 0)
+            head.Neck.C0 = head.Neck.C0:Lerp(targetC0, 0.3)
             pointingService.pointHead:fireServer(targetC0, 0.3)
         end
 	end
@@ -76,19 +90,20 @@ function cameraController.updateBobbleEffect()
 		if v:IsA("BasePart") then
 			if v.Name ~= "Head" then
 				v.LocalTransparencyModifier = 0
-			end
-			if humanoid.Parent:GetAttribute("Downed") == true then
+            elseif lockedToHead then
+                v.LocalTransparencyModifier = 1
+			elseif humanoid.Parent:GetAttribute("Downed") == true then
 				v.LocalTransparencyModifier = 0
 			end
 		end
 
 		if v:IsA("Accessory") then
-			if not (v.Handle:FindFirstChild("AccessoryWeld").Part1 == character.Head) then
+            if lockedToHead then
+				v.Handle.LocalTransparencyModifier = 1
+            elseif not (v.Handle:FindFirstChild("AccessoryWeld").Part1 == head) then
 				v.Handle.LocalTransparencyModifier = 0
-			else
-				if humanoid.Parent:GetAttribute("Downed") == true then
-					v.Handle.LocalTransparencyModifier = 0
-				end
+			elseif humanoid.Parent:GetAttribute("Downed") == true then
+                v.Handle.LocalTransparencyModifier = 0
 			end
 		end
 	end

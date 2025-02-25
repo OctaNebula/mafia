@@ -71,6 +71,7 @@ local GAME_CONFIG = {
 
 local gameService = {
     playersInfo = network.Server.RemoteProperty.new({}),
+    setCameraLockedToHead = Signal.new(),
     vigilanteInterrupt = Signal.new(),
     killPlayer = Signal.new(),
     client = {
@@ -107,6 +108,7 @@ local gameService = {
         lightsToggled = network.Server.RemoteProperty.new(true),
         chatToggled = network.Server.RemoteProperty.new(true),
         firstPersonForced = network.Server.RemoteProperty.new(false),
+        cameraLockedToHead = network.Server.RemoteProperty.new(false),
         canSkipVote = network.Server.RemoteProperty.new(false),
         canVote = network.Server.RemoteProperty.new(false),
         isDead = network.Server.RemoteProperty.new(false),
@@ -120,6 +122,10 @@ function gameService.start()
     uiManager.init(gameService)
 
     phaseHandler.init(gameService)
+
+    gameService.setCameraLockedToHead:Connect(function(player, bool)
+        gameService.client.cameraLockedToHead:setForClient(player, bool)
+    end)
 
     Players.PlayerAdded:Connect(function(player)
         player:LoadCharacter()
