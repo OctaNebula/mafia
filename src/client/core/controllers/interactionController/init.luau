@@ -24,10 +24,6 @@ local inputDebounce = false
 local interactionController = {}
 
 function interactionController.start()
-    local globalPrompts = interactionService.globalPrompts:get()
-    for instance, properties in globalPrompts do
-        interactionController.setupPrompt(instance, properties)
-    end
     interactionService.promptAdded:connect(function(instance: Instance, properties)
         interactionController.setupPrompt(instance, properties)
     end)
