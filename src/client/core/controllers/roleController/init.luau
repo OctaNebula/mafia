@@ -12,15 +12,16 @@ local roles = script.roles
 local roleController = {}
 
 function roleController.start()
+    local roleModule
 	roleService.role:observe(function(newRole)
+        -- TODO: disconnect roleModule here
         if not newRole then
             return
         end
-        local roleModule = roles:FindFirstChild(newRole)
+        roleModule = roles:FindFirstChild(newRole)
         if not roleModule then
             return
         end
-        -- TODO: disconnect previous role module
         require(roleModule).start()
     end)
 end
