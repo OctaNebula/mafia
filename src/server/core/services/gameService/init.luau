@@ -128,6 +128,9 @@ function gameService.start()
     end)
 
     Players.PlayerAdded:Connect(function(player)
+        player.CharacterAdded:Connect(function(character)
+            character.HumanoidRootPart.CanCollide = false
+        end)
         player:LoadCharacter()
     end)
 
