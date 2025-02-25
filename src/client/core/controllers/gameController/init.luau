@@ -32,6 +32,7 @@ function gameController.start()
     gameService.lightsToggled:observe(gameController.onLightsToggledUpdate)
     gameService.chatToggled:observe(gameController.onChatToggledUpdate)
     gameService.firstPersonForced:observe(gameController.onFirstPersonForcedUpdate)
+    gameService.cameraLockedToHead:observe(gameController.onCameraLockedToHead)
     gameService.talliedVotes:observe(gameController.onTalliedVotes)
 end
 
@@ -176,6 +177,8 @@ end
 
 function gameController.onFirstPersonForcedUpdate(newFirstPersonForced)
     -- print("New first person forced:", newFirstPersonForced)
+    local currentCamera = workspace.CurrentCamera
+    currentCamera.CameraType = Enum.CameraType.Custom
     if newFirstPersonForced then
         LocalPlayer.CameraMode = Enum.CameraMode.LockFirstPerson
     else
@@ -215,6 +218,12 @@ function gameController.onTalliedVotes(newTalliedVotes, oldTalliedVotes)
         billboard = voteBillboard:Clone()
         billboard.Votes.Text = votes
         billboard.Parent = character
+    end
+end
+
+function gameController.onCameraLockedToHead(newCameraLockedToHead)
+    if not newCameraLockedToHead then
+        gameController.onFirstPersonForcedUpdate(gameService.firstPersonForced:get())
     end
 end
 
