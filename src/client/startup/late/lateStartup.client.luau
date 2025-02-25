@@ -10,7 +10,9 @@ local startupUtil = require(sharedModules.utilities.startupUtil)
 local CONTROLLER_STARTUP_METHOD = "start"
 local CONTROLLER_NAME_FORMAT = "Controller$"
 
-ContentProvider:PreloadAsync(ReplicatedStorage.assets:GetDescendants())
+task.spawn(function()
+    ContentProvider:PreloadAsync(ReplicatedStorage.assets:GetDescendants())
+end)
 
 serviceUtil.ensureServicesAreReplicatedAndSetup()
 
