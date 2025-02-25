@@ -15,9 +15,9 @@ local isMain = false
 
 local interactionService = {
     signals = {
-    editPrompt = Signal.new(),
+        editPrompt = Signal.new(),
         setupPrompt = Signal.new(),
-    removePrompt = Signal.new(),
+        removePrompt = Signal.new(),
     },
     client = {
         promptAdded = network.Server.RemoteSignal.new(),

@@ -1,3 +1,4 @@
+local CollectionService = game:GetService("CollectionService")
 local ContextActionService = game:GetService("ContextActionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -5,7 +6,6 @@ local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
 
 local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
-local mouse = LocalPlayer:GetMouse()
 
 local sharedPackages = ReplicatedStorage.sharedPackages
 local network = require(sharedPackages.network)
@@ -17,6 +17,7 @@ local rolesConfig = require(shared.configurations.roles)
 
 local assets = ReplicatedStorage.assets
 local mafiaHighlight = assets.mafiaHighlight
+local revealHighlight = assets.revealHighlight
 local mafiaKillHighlight = assets.mafiaKillHighlight:Clone()
 local killBillboard = assets.killBillboard:Clone()
 
@@ -31,12 +32,22 @@ local witchMembers = {}
 
 local mafia = {}
 
--- should add destroy function later
+-- should add disconnect function later
 function mafia.start()
     mafiaServer.nightVisionToggled:observe(mafia.onNightVision)
     mafiaServer.canKill:observe(mafia.onCanKill)
     mafiaServer.teamMembers:observe(mafia.onTeamMembersUpdate)
     ContextActionService:BindAction("mafiaKill", mafia.handleMafiaKill, true, Enum.KeyCode.E) -- TODO: custom keybinds!
+    CollectionService:GetInstanceAddedSignal("MafiaHighlighted"):Connect(function(object)
+        local highlight = revealHighlight:Clone()
+        highlight.Parent = object
+    end)
+    CollectionService:GetInstanceRemovedSignal("MafiaHighlighted"):Connect(function(object)
+        local highlight = object:FindFirstChild("revealHighlight")
+        if highlight then
+            highlight:Destroy()
+        end
+    end)
 end
 
 function mafia.onNightVision(nightVisionToggled)
@@ -55,7 +66,7 @@ function mafia.handleMafiaKill(_, inputState)
         return Enum.ContextActionResult.Pass
     end
     task.spawn(function()
-    mafia.setTargetCharacter(nil)
+        mafia.setTargetCharacter(nil)
         killDebounce = true
         mafiaServer.onKill(player)
         killDebounce = false
@@ -73,9 +84,6 @@ function mafia.onCanKill(canKill)
     if canKill and not canKillConnection then
         print("Connected!")
         canKillConnection = RunService.RenderStepped:Connect(function()
-            local target = mouse.Target
-            if not target then
-                mafia.setTargetCharacter(nil)
             if killDebounce then
                 return
             end

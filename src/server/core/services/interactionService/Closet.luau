@@ -1,19 +1,32 @@
+-- this module is not intended to be require'd more than once so dont do that pls
 local KeyframeSequenceProvider = game:GetService("KeyframeSequenceProvider")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerStorage = game:GetService("ServerStorage")
 
 local animations = ReplicatedStorage.assets.animations
 local closetAnimations = animations.closet
 local player1Animations = animations.player1
 local player2Animations = animations.player2
 
+local sharedPackages = ReplicatedStorage.sharedPackages
+local Signal = require(sharedPackages.Signal)
+
 local shared = ReplicatedStorage.shared
+
+local mafiaHighlightTimer = require(script.Parent.components.mafiaHighlightTimer).init(10, 10, 5)
+
+local services = ServerStorage.server.services
+local gameService = require(services.gameService)
 
 local configurations = shared.configurations
 local animationOffsets = require(configurations.animationOffsets)
 
 local loadAnimation = require(shared.modules.loadAnimation)
 
+local playerTimers = {} -- globally accessible to all closet objects
+
 local Closet = {}
+
 Closet.__index = Closet
 
 function Closet.new(instance, interactionService)
@@ -43,7 +56,8 @@ end
 
 function Closet:interact(player: Player, actionName: string?)
     local character = player.Character
-    if not character or self.busy or self.interactionService.setExclusiveInteraction(player, self.instance, nil) == false then
+    local hasExclusiveInteraction = self.interactionService.hasExclusiveInteraction(player, self.instance)
+    if not character or self.busy or hasExclusiveInteraction == false then
         return false
     end
     self.busy = true
@@ -51,8 +65,11 @@ function Closet:interact(player: Player, actionName: string?)
     if character == self.characterChecking then
         if actionName == "enter" then
             if self.characterStored then
+                self.busy = false
                 return false
             end
+            self.interactionService.setExclusiveInteraction(player, self.instance, nil)
+            gameService.setCameraLockedToHead:Fire(player, true)
             self.characterChecking = nil
             self.characterStored = character
             self:playStoreCharacterAnim(character)
@@ -69,24 +86,32 @@ function Closet:interact(player: Player, actionName: string?)
                     exit = Enum.KeyCode.E
                 }
             })
+            mafiaHighlightTimer.toggleTimer(player, true)
         elseif actionName == "cancel" then
+            self.interactionService.setExclusiveInteraction(player, self.instance, nil)
             self.characterChecking = nil
             self:stopCharacterCheckAnim(character)
-            self.interactionService.editPrompt(self.instance, { enabled = true })
+            gameService.setCameraLockedToHead:Fire(player, false)
         else
             warn(`actionName "enter" or "cancel" expected, got {actionName}`)
         end
     elseif character == self.characterStored then
         if self.characterChecking then
+            self.busy = false
             return false
         end
+        mafiaHighlightTimer.toggleTimer(player, false)
+        self.interactionService.setExclusiveInteraction(player, self.instance, nil)
         self.characterStored = nil
         self:playUnstoreCharacterAnim(character)
-        self.interactionService.editPrompt(self.instance, { enabled = true })
+        gameService.setCameraLockedToHead:Fire(player, false)
     else
         if self.characterChecking then
+            self.busy = false
             return false
         end
+        self.interactionService.setExclusiveInteraction(player, self.instance, nil)
+        gameService.setCameraLockedToHead:Fire(player, true)
         self.characterChecking = character
         self:playCharacterCheckAnim(character)
         self.interactionService.setExclusiveInteraction(player, self.instance, {
@@ -103,6 +128,13 @@ function Closet:interact(player: Player, actionName: string?)
             }
         })
     end
+
+    if self.characterChecking then
+        self.interactionService.editPrompt(self.instance, { enabled = false })
+    else
+        self.interactionService.editPrompt(self.instance, { enabled = true })
+    end
+
     self.busy = false
     return true
 end
