@@ -49,7 +49,7 @@ function mapManager.loadMap(mapName)
     local closets = map.Closets:GetChildren()
     local doors = map.Doors:GetChildren()
     for _, closet in closets do
-        interactionService.setupPrompt(closet)
+        interactionService.setupPrompt(closet, "Closet")
     end
     -- for _, door in doors do
     --     interactionService.setInteractable(door, true)

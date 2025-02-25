@@ -1,32 +1,44 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local CollectionService = game:GetService("CollectionService")
-local ServerStorage = game:GetService("ServerStorage")
 local Players = game:GetService("Players")
--- local Players = game:GetService("Players")
 
 local sharedPackages = ReplicatedStorage.sharedPackages
-
-local services = ServerStorage.server.services
 
 local network = require(sharedPackages.network)
 local Signal = require(sharedPackages.Signal)
 
 local initializedPrompts = {}
+local globalPrompts = {}
+
+local objects
+
+local isMain = false
 
 local interactionService = {
-    addPrompt = Signal.new(),
+    signals = {
     editPrompt = Signal.new(),
+        setupPrompt = Signal.new(),
     removePrompt = Signal.new(),
+    },
     client = {
         promptAdded = network.Server.RemoteSignal.new(),
         promptEdited = network.Server.RemoteSignal.new(),
         promptRemoved = network.Server.RemoteSignal.new(),
-        globalPrompts = network.Server.RemoteProperty.new({}),
         exclusiveInteraction = network.Server.RemoteProperty.new()
     }
 }
 
 function interactionService.start()
+    objects = {
+        closet = require(script.Closet)
+    }
+    isMain = true
+
+    Players.PlayerAdded:Connect(function(player)
+        for instance, properties in globalPrompts do
+            interactionService.client.promptAdded:fireClient(player, instance, properties)
+        end
+    end)
+
     Players.PlayerRemoving:Connect(function(player)
         for _, object in initializedPrompts do
             local players = object.players
@@ -39,6 +51,25 @@ function interactionService.start()
             end
         end
     end)
+
+    interactionService.signals.editPrompt:Connect(function(...)
+        interactionService.editPrompt(...)
+    end)
+    interactionService.signals.setupPrompt:Connect(function(...)
+        interactionService.setupPrompt(...)
+    end)
+    interactionService.removePrompt:Connect(function(...)
+        interactionService.removePrompt(...)
+    end)
+end
+
+function interactionService.hasExclusiveInteraction(player: Player, instance: Instance)
+    local exclusiveInteractionProperty = interactionService.client.exclusiveInteraction
+    local exclusiveInteractionClientValue = exclusiveInteractionProperty:clientValue(player)
+    if exclusiveInteractionClientValue and exclusiveInteractionClientValue.instance ~= instance then
+        return false
+    end
+    return true
 end
 
 function interactionService.setExclusiveInteraction(player: Player, instance: Instance, inputs): boolean
@@ -50,7 +81,7 @@ function interactionService.setExclusiveInteraction(player: Player, instance: In
     end
     if not inputs then
         exclusiveInteractionProperty:removeForClient(player)
-        return true
+        return exclusiveInteractionClientValue
     end
     local inputsArray = {}
     for _, newInputs in inputs do
@@ -77,31 +108,13 @@ function interactionService.setExclusiveInteraction(player: Player, instance: In
         instance = instance,
         inputs = inputs
     })
-    return true
-end
-
-function interactionService.setupPrompt(instance: Instance, players: {Player}?)
-    initializedPrompts[instance] = {
-        handler = require(script.Closet).new(instance, interactionService),
-        players = players,
-        properties = {
-            requiresDirectLineOfSight = false,
-            input = Enum.KeyCode.E,
-            maxDistance = 10,
-            enabled = true,
-        }
-    }
-    if players then
-        interactionService.client.promptAdded:fireClients(players, instance, initializedPrompts[instance].properties)
-    else
-        interactionService.client.promptAdded:fireAllClients(instance, initializedPrompts[instance].properties)
-        local globalPrompts = interactionService.client.globalPrompts:get()
-        globalPrompts[instance] = initializedPrompts[instance].properties
-        interactionService.client.globalPrompts:set(table.clone(globalPrompts))
-    end
+    return exclusiveInteractionClientValue
 end
 
 function interactionService.editPrompt(instance: Instance, newProperties: {string: any})
+    if not isMain then
+        interactionService.signals.editPrompt:Fire(instance, newProperties)
+    end
     local prompt = initializedPrompts[instance]
     local edited = false
     for index, property in newProperties do
@@ -122,13 +135,36 @@ function interactionService.editPrompt(instance: Instance, newProperties: {strin
         interactionService.client.promptEdited:fireClients(prompt.players, instance, table.clone(prompt.properties))
     else
         interactionService.client.promptEdited:fireAllClients(instance, table.clone(prompt.properties))
-        local globalPrompts = interactionService.client.globalPrompts:get()
         globalPrompts[instance] = initializedPrompts[instance].properties
-        interactionService.client.globalPrompts:set(table.clone(globalPrompts))
+    end
+end
+
+function interactionService.setupPrompt(instance: Instance, objectType: string, players: {Player}?)
+    if not isMain then
+        interactionService.signals.setupPrompt:Fire(instance, players)
+    end
+    initializedPrompts[instance] = {
+        handler = objects[string.lower(objectType)].new(instance, interactionService),
+        players = players,
+        properties = {
+            requiresDirectLineOfSight = false,
+            input = Enum.KeyCode.E,
+            maxDistance = 10,
+            enabled = true,
+        }
+    }
+    if players then
+        interactionService.client.promptAdded:fireClients(players, instance, initializedPrompts[instance].properties)
+    else
+        interactionService.client.promptAdded:fireAllClients(instance, initializedPrompts[instance].properties)
+        globalPrompts[instance] = initializedPrompts[instance].properties
     end
 end
 
 function interactionService.destroyPrompt(instance: Instance)
+    if not isMain then
+        interactionService.signals.destroyPrompt:Fire(instance)
+    end
     local handler = initializedPrompts[instance].handler
     -- use handler:Destroy or equivalent
     local players = initializedPrompts[instance].players
@@ -136,9 +172,7 @@ function interactionService.destroyPrompt(instance: Instance)
         interactionService.client.promptRemoved:fireClients(players, instance)
     else
         interactionService.client.promptRemoved:fireAllClients(instance)
-        local globalPrompts = interactionService.client.globalPrompts:get()
         globalPrompts[instance] = nil
-        interactionService.client.globalPrompts:set(table.clone(globalPrompts))
     end
     initializedPrompts[instance] = nil
 end
@@ -149,7 +183,7 @@ function interactionService.destroyAllPrompts()
     end
 end
 
-function interactionService.client.interactWith(player: Player, instance: Instance, inputName: string)
+function interactionService.client.interactWith(player: Player, instance: string, inputName: string)
     -- TODO: add line of sight and distance sanity checks
     local exclusiveInteraction = interactionService.client.exclusiveInteraction:clientValue(player)
     local prompt = initializedPrompts[instance]
