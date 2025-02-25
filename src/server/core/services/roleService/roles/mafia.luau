@@ -18,8 +18,6 @@ local killDebounce = false
 
 local mafia = {
     client = {
-        killTarget = network.Server.RemoteSignal.new(),
-        
         nightVisionToggled = network.Server.RemoteProperty.new(false),
         canKill = network.Server.RemoteProperty.new(false),
         teamMembers = network.Server.RemoteProperty.new(nil),
@@ -27,11 +25,9 @@ local mafia = {
 }
 
 function mafia.start()
-    mafia.client.killTarget:connect(mafia.onKill)
-
     gameService.playersInfo:observe(mafia.onPlayersInfoChanged)
-    gameService.client.gamePhase.onUpdate:Connect(mafia.onGameStateChanged)
-    gameService.client.abilitiesEnabled.onUpdate:Connect(mafia.onGameStateChanged)
+    gameService.client.gamePhase:observe(mafia.onGameStateChanged)
+    gameService.client.abilitiesEnabled:observe(mafia.onGameStateChanged)
 end
 
 function mafia.onPlayersInfoChanged(newPlayersInfo, oldPlayersInfo)
@@ -78,7 +74,7 @@ function mafia.onGameStateChanged()
     end
 end
 
-function mafia.onKill(killer, victim)
+function mafia.client.onKill(killer, victim)
     if killDebounce then
         return
     end
@@ -97,14 +93,17 @@ function mafia.onKill(killer, victim)
     
     local magnitude = (killerCharacter:GetPivot().Position-victimCharacter:GetPivot().Position).Magnitude
 
-    if magnitude > 7 then
-        return
+    if magnitude <= 7 then
+        killDebounce = true
+        mafia.client.canKill:setForClients(currentPlayersInTeam, false)
+        gameService.killPlayer:Fire(killer, victim, "Knife Wound")
+    elseif magnitude > 7 then
+        killDebounce = true
+        mafia.client.canKill:setForClients(currentPlayersInTeam, false)
+        gameService.killPlayer:Fire(killer, victim, "Gun Shot")
     end
-    -- need los sanity check, should go from the head to any point of the character
-
-    killDebounce = true
-    mafia.client.canKill:setForClients(currentPlayersInTeam, false)
-    gameService.killPlayer:Fire(killer, victim, "Knife Wound")
+    -- TODO: need los sanity check, should go from the head to any point of the character
+    -- tip: use shapecasting here
 end
 
 return mafia
