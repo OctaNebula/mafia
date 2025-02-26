@@ -22,7 +22,7 @@ function mafiaHighlightTimer.init(timeToHide, timeToReset, timeToHighlight)
             resetTimer = timeToReset,
             hideTimer = timeToHide,
         }
-        player.Character.CharacterAdded:Connect(function(character: Model)
+        player.CharacterAdded:Connect(function(character: Model)
             characterAdded(player, character)
         end)
     end

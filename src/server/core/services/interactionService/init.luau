@@ -58,7 +58,7 @@ function interactionService.start()
     interactionService.signals.setupPrompt:Connect(function(...)
         interactionService.setupPrompt(...)
     end)
-    interactionService.removePrompt:Connect(function(...)
+    interactionService.signals.removePrompt:Connect(function(...)
         interactionService.removePrompt(...)
     end)
 end
