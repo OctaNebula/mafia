@@ -98,4 +98,12 @@ function mafiaHighlightTimer.toggleTimer(player, toggled)
     initializedPlayers[player].timerActive = toggled
 end
 
+function mafiaHighlightTimer.disableAllTimers()
+    for player, timerData in initializedPlayers do
+        local character: Model = player.Character
+        timerData.timerActive = false
+        character:RemoveTag("MafiaHighlighted")
+    end
+end
+
 return mafiaHighlightTimer
