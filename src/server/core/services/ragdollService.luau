@@ -207,7 +207,7 @@ function ragdollService.destroyJoints(character: Model)
 end
 
 function ragdollService.ragdollCharacter(character: Model)
-    if not character or character:GetAttribute("Ragdolled") then
+    if not character or character:GetAttribute("Ragdolled") or character:GetAttribute("RagdollImmune") then
         return
     end
     local player = Players:GetPlayerFromCharacter(character)

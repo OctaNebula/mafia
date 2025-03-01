@@ -14,7 +14,8 @@ local objects
 local isMain = false
 
 local interactionService = {
-    signals = {
+    cleanupObjects = Signal.new(),
+    funcSignals = {
         editPrompt = Signal.new(),
         setupPrompt = Signal.new(),
         removePrompt = Signal.new(),
@@ -52,14 +53,21 @@ function interactionService.start()
         end
     end)
 
-    interactionService.signals.editPrompt:Connect(function(...)
+    interactionService.funcSignals.editPrompt:Connect(function(...)
         interactionService.editPrompt(...)
     end)
-    interactionService.signals.setupPrompt:Connect(function(...)
+    interactionService.funcSignals.setupPrompt:Connect(function(...)
         interactionService.setupPrompt(...)
     end)
-    interactionService.signals.removePrompt:Connect(function(...)
+    interactionService.funcSignals.removePrompt:Connect(function(...)
         interactionService.removePrompt(...)
+    end)
+    interactionService.cleanupObjects:Connect(function()
+        for _, object in initializedPrompts do
+            if object.handler.cleanup then
+                object.handler:cleanup()
+            end
+        end
     end)
 end
 
@@ -113,7 +121,7 @@ end
 
 function interactionService.editPrompt(instance: Instance, newProperties: {string: any})
     if not isMain then
-        interactionService.signals.editPrompt:Fire(instance, newProperties)
+        interactionService.funcSignals.editPrompt:Fire(instance, newProperties)
     end
     local prompt = initializedPrompts[instance]
     local edited = false
@@ -141,10 +149,11 @@ end
 
 function interactionService.setupPrompt(instance: Instance, objectType: string, players: {Player}?)
     if not isMain then
-        interactionService.signals.setupPrompt:Fire(instance, players)
+        interactionService.funcSignals.setupPrompt:Fire(instance, players)
     end
     initializedPrompts[instance] = {
         handler = objects[string.lower(objectType)].new(instance, interactionService),
+        objectType = objectType,
         players = players,
         properties = {
             requiresDirectLineOfSight = false,
@@ -163,7 +172,7 @@ end
 
 function interactionService.destroyPrompt(instance: Instance)
     if not isMain then
-        interactionService.signals.destroyPrompt:Fire(instance)
+        interactionService.funcSignals.destroyPrompt:Fire(instance)
     end
     local handler = initializedPrompts[instance].handler
     -- use handler:Destroy or equivalent

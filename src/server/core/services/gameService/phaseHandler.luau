@@ -8,10 +8,14 @@ local sharedPackages = ReplicatedStorage.sharedPackages
 local ReactSpring = require(sharedPackages.ReactSpring)
 
 local services = ServerStorage.server.services
+local interactionService = require(services.interactionService)
 local spectatingService = require(services.spectatingService)
 local flashlightService = require(services.flashlightService)
 local pointingService = require(services.pointingService)
 local ragdollService = require(services.ragdollService)
+
+local assets = ReplicatedStorage.assets
+local slashDecal = assets.slashDecal
 
 local gameUtils = require(script.Parent.gameUtils)
 
@@ -71,7 +75,7 @@ function phaseHandler.Night(gameState)
         end
     end
 
-    -- phaseHandler.properties.firstPersonForced:set(true)
+    phaseHandler.properties.firstPersonForced:set(true)
     for _, seat in workspace.Map.Seats:GetChildren() do
         local seatWeld = seat:FindFirstChild("SeatWeld")
         if seatWeld then
@@ -134,10 +138,12 @@ function phaseHandler.Night(gameState)
             ragdollService.setRagdoll:Fire(victim.Character, true)
             phaseHandler.properties.firstPersonForced:setForClient(victim, false)
             local deathTimer = math.min(gameState.GAME_CONFIG.DOCTOR_REVIVE_TIMER, gameState.GAME_CONFIG.NIGHT_END_TIMER)
+            slashDecal:Clone().Parent = victim.Character:FindFirstChild("UpperTorso") or victim.Character:FindFirstChild("Torso")
             task.delay(deathTimer, function()
                 if not victim.Character:GetAttribute("Downed") then
                     return
                 end
+                victim.Character:SetAttribute("Dead", true)
                 -- should be managed by a different manager, but this works for now.
                 phaseHandler.properties.spectating:setForClient(victim, true) -- note that they could have this disabled if they're a jester
                 phaseHandler.properties.isDead:setForClient(victim, true)
@@ -194,6 +200,7 @@ function phaseHandler.Day(gameState)
         fade to black
     ]]
     -- entry actions
+    local objects = interactionService.cleanupObjects:Fire("Closet")
     phaseHandler.properties.lightsToggled:set(true)
     phaseHandler.properties.firstPersonForced:set(false)
     local seatIndex = 1
