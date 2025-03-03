@@ -63,7 +63,7 @@ end
 function mafia.onGameStateChanged()
     local gamePhase = gameService.client.gamePhase:get()
     local abilitiesEnabled = gameService.client.abilitiesEnabled:get()
-    
+
     if gamePhase == "Night" and abilitiesEnabled then
         killDebounce = false
         mafia.client.nightVisionToggled:setForClients(currentPlayersInTeam, true)
