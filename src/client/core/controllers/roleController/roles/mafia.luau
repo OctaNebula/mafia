@@ -75,8 +75,9 @@ function mafia.handleMafiaKill(_, inputState)
     return Enum.ContextActionResult.Sink
 end
 
-function mafia.setTargetCharacter(character)
+function mafia.setTargetCharacter(character, textToAdd)
     mafiaKillHighlight.Parent = character
+    killBillboard.TextLabel.Text = `E to {textToAdd or "kill"}`
     killBillboard.Parent = character
     targetCharacter = character
 end
@@ -144,13 +145,13 @@ function mafia.onCanKill(canKill)
                 mafia.setTargetCharacter(nil)
                 return
             end
-            -- local magnitude = (LocalPlayer.Character:GetPivot().Position-character:GetPivot().Position).Magnitude
+            local magnitude = (LocalPlayer.Character:GetPivot().Position-character:GetPivot().Position).Magnitude
             local player = Players:GetPlayerFromCharacter(character)
             if table.find(mafiaMembers, player.UserId) or table.find(witchMembers, player.UserId) then
                 mafia.setTargetCharacter(nil)
                 return
             end
-            mafia.setTargetCharacter(character)
+            mafia.setTargetCharacter(character, if magnitude > 7 then "shoot" else "stab")
         end)
     elseif not canKill and canKillConnection then
         canKillConnection:Disconnect()
