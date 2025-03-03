@@ -161,6 +161,16 @@ function mafia.onCanKill(canKill)
 end
 
 function mafia.onTeamMembersUpdate(teamMembers)
+    for _, player in Players:GetPlayers() do
+        local character = player.Character
+        if not character then
+            continue
+        end
+        local characterMafiaHighlight = character:FindFirstChild("mafiaHighlight")
+        if characterMafiaHighlight then
+            characterMafiaHighlight:Destroy()
+        end
+    end
     if teamMembers == nil then
         return
     end
@@ -181,7 +191,7 @@ function mafia.onTeamMembersUpdate(teamMembers)
         local player = Players:GetPlayerByUserId(userId)
         local character = player.Character or player.CharacterAdded:Wait()
         local highlight = mafiaHighlight:Clone()
-        highlight.Parent = character -- need to clean up when updated, although not actually necessary right now
+        highlight.Parent = character
     end
 end
 
