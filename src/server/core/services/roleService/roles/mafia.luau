@@ -9,6 +9,7 @@ local sharedPackages = ReplicatedStorage.sharedPackages
 local network = require(sharedPackages.network)
 
 local services = ServerStorage.server.services
+local effectsService = require(services.effectsService)
 local gameService = require(services.gameService)
 
 local roleParser = require(script.Parent.Parent.roleParser)
@@ -97,10 +98,12 @@ function mafia.client.onKill(killer, victim)
         killDebounce = true
         mafia.client.canKill:setForClients(currentPlayersInTeam, false)
         gameService.killPlayer:Fire(killer, victim, "Knife Wound")
+        effectsService.playOnClients:Fire(Players:GetPlayers(), "knifeWound", killerCharacter, victimCharacter)
     elseif magnitude > 7 then
         killDebounce = true
         mafia.client.canKill:setForClients(currentPlayersInTeam, false)
         gameService.killPlayer:Fire(killer, victim, "Gun Shot")
+        effectsService.playOnClients:Fire(Players:GetPlayers(), "gunShot", killerCharacter, victimCharacter)
     end
     -- TODO: need los sanity check, should go from the head to any point of the character
     -- tip: use shapecasting here
