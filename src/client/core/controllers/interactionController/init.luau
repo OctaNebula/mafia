@@ -196,7 +196,7 @@ function interactionController.updateActionBinds()
     if #inputs <= 0 then
         ContextActionService:UnbindAction("interactionController")
     else
-        ContextActionService:BindActionAtPriority("interactionController", interactionController.handleInput, false, 1, table.unpack(inputs))
+        ContextActionService:BindActionAtPriority("interactionController", interactionController.handleInput, false, 2, table.unpack(inputs))
     end
 end
 

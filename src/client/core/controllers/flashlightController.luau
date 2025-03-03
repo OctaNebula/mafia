@@ -55,7 +55,7 @@ function flashlightController.start()
         loadedAnimations.hold:Play()
         armController.setIsPointing:Fire("flashlightController", true)
     end)
-    ContextActionService:BindAction("flashlightToggle", function(_, inputState)
+    ContextActionService:BindActionAtPriority("flashlightToggle", function(_, inputState)
         if inputState ~= Enum.UserInputState.End then
             return Enum.ContextActionResult.Pass
         end
@@ -71,7 +71,7 @@ function flashlightController.start()
         attachment.SpotLight.Enabled = flashlightToggled
         attachment.SpotLight1.Enabled = flashlightToggled
         flashlightService.toggleFlashlight:fireServer(flashlightToggled)
-    end, true, Enum.KeyCode.F)
+    end, true, 1, Enum.KeyCode.F)
 end
 
 return flashlightController

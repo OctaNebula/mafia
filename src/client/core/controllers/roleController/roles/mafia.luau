@@ -38,7 +38,7 @@ function mafia.start()
     mafiaServer.nightVisionToggled:observe(mafia.onNightVision)
     mafiaServer.canKill:observe(mafia.onCanKill)
     mafiaServer.teamMembers:observe(mafia.onTeamMembersUpdate)
-    ContextActionService:BindActionAtPriority("mafiaKill", mafia.handleMafiaKill, true, 2, Enum.KeyCode.E) -- TODO: custom keybinds!
+    ContextActionService:BindActionAtPriority("mafiaKill", mafia.handleMafiaKill, true, 3, Enum.KeyCode.E) -- TODO: custom keybinds!
     CollectionService:GetInstanceAddedSignal("MafiaHighlighted"):Connect(function(object)
         local highlight = revealHighlight:Clone()
         highlight.Parent = object
