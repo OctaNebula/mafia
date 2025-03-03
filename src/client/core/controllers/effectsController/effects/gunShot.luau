@@ -14,7 +14,7 @@ return function(character, target)
     Debris:AddItem(gunShot, gunShot.TimeLength)
     task.spawn(function()
         Lighting.GunFlare.Enabled = true
-        task.wait()
+        task.wait(0.1)
         Lighting.GunFlare.Enabled = false
     end)
     -- character.Gun.Attachment.PointLight.Enabled = true
