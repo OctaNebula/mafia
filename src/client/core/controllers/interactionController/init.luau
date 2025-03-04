@@ -18,6 +18,7 @@ local activeInputs = {}
 local interactablePrompts = {}
 local allPromptDistances = {}
 local exclusiveInteraction
+local exclusiveInteractionPrompt
 
 local inputDebounce = false
 
@@ -35,6 +36,9 @@ function interactionController.start()
     end)
 
     interactionService.exclusiveInteraction:observe(function(newExclusiveInteraction)
+        if exclusiveInteractionPrompt then
+            exclusiveInteractionPrompt:Destroy()
+        end
         if not newExclusiveInteraction then
             exclusiveInteraction = nil
             interactionController.updateActionBinds()
@@ -186,6 +190,11 @@ function interactionController.updateActionBinds()
                 table.insert(inputs, input)
             end
         end
+        local promptInfo = exclusiveInteraction.promptInfo
+        if promptInfo then
+            exclusiveInteractionPrompt = interactionController.setupPrompt(promptInfo.instance, promptInfo, true)
+            print(exclusiveInteractionPrompt)
+        end
     else
         for input, numberOfInputs in activeInputs do
             if numberOfInputs > 0 then
@@ -200,11 +209,15 @@ function interactionController.updateActionBinds()
     end
 end
 
-function interactionController.setupPrompt(instance: Instance, properties)
+function interactionController.setupPrompt(instance: Instance, properties, isExclusivePrompt)
     local UIClone = proximityPromptUI:Clone()
     UIClone.MaxDistance = math.huge
-    UIClone.Enabled = false
+    UIClone.body.image.Image = properties.image or "rbxassetid://17368931552"
+    UIClone.Enabled = isExclusivePrompt or false
     UIClone.Parent = instance
+    if isExclusivePrompt then
+        return UIClone
+    end
     activePrompts[instance] = {
         properties = properties,
         instance = instance,
@@ -216,6 +229,7 @@ function interactionController.setupPrompt(instance: Instance, properties)
     activeInputs[properties.input] += 1
 
     interactionController.updateActionBinds()
+    return UIClone
 end
 
 function interactionController.editPrompt(instance: Instance, properties)

@@ -13,6 +13,12 @@ local objects
 
 local isMain = false
 
+local objectImages = {
+    interact = "rbxassetid://17368931552",
+    closet = "rbxassetid://17368931705",
+    door = "rbxassetid://17368928352",
+}
+
 local interactionService = {
     cleanupObjects = Signal.new(),
     funcSignals = {
@@ -80,7 +86,7 @@ function interactionService.hasExclusiveInteraction(player: Player, instance: In
     return true
 end
 
-function interactionService.setExclusiveInteraction(player: Player, instance: Instance, inputs): boolean
+function interactionService.setExclusiveInteraction(player: Player, instance: Instance, inputs, promptInfo): boolean
     local exclusiveInteractionProperty = interactionService.client.exclusiveInteraction
     local exclusiveInteractionClientValue = exclusiveInteractionProperty:clientValue(player)
     if exclusiveInteractionClientValue and exclusiveInteractionClientValue.instance ~= instance then
@@ -113,6 +119,7 @@ function interactionService.setExclusiveInteraction(player: Player, instance: In
         end
     end
     exclusiveInteractionProperty:setForClient(player, {
+        promptInfo = promptInfo,
         instance = instance,
         inputs = inputs
     })
@@ -160,6 +167,7 @@ function interactionService.setupPrompt(instance: Instance, objectType: string, 
             input = Enum.KeyCode.E,
             maxDistance = 10,
             enabled = true,
+            image = objectImages[string.lower(objectType)] or objectImages.interact
         }
     }
     if players then

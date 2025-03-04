@@ -147,6 +147,10 @@ function Closet:interact(player: Player, actionName: string?)
                 ended = {
                     exit = Enum.KeyCode.E
                 }
+            }, {
+                instance = self.instance.Base,
+                image = "rbxassetid://17368931705",
+                key = "E",
             })
             mafiaHighlightTimer.toggleTimer(player, true)
         elseif actionName == "cancel" then
@@ -191,6 +195,10 @@ function Closet:interact(player: Player, actionName: string?)
             ended = {
                 enter = Enum.KeyCode.E
             }
+        }, {
+            instance = self.instance.Base,
+            image = "rbxassetid://17368931705",
+            key = "E",
         })
     end
 
