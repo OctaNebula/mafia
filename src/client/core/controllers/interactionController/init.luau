@@ -194,7 +194,6 @@ function interactionController.updateActionBinds()
         local promptInfo = exclusiveInteraction.promptInfo
         if promptInfo then
             exclusiveInteractionPrompt = interactionController.setupPrompt(promptInfo.instance, promptInfo, true)
-            print(exclusiveInteractionPrompt)
         end
     else
         for input, numberOfInputs in activeInputs do
