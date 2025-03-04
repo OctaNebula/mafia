@@ -26,6 +26,7 @@ local interactionController = {}
 
 function interactionController.start()
     interactionService.promptAdded:connect(function(instance: Instance, properties)
+        -- print(instance, properties)
         interactionController.setupPrompt(instance, properties)
     end)
     interactionService.promptEdited:connect(function(instance: Instance, properties)
@@ -214,7 +215,8 @@ function interactionController.setupPrompt(instance: Instance, properties, isExc
     UIClone.MaxDistance = math.huge
     UIClone.body.image.Image = properties.image or "rbxassetid://17368931552"
     UIClone.Enabled = isExclusivePrompt or false
-    UIClone.Parent = instance
+    UIClone.Parent = instance:FindFirstChild("Base") or instance
+    print(instance:FindFirstChild("Base"))
     if isExclusivePrompt then
         return UIClone
     end
