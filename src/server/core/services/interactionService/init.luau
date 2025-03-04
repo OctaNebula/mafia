@@ -35,9 +35,16 @@ local interactionService = {
 }
 
 function interactionService.start()
-    objects = {
-        closet = require(script.Closet)
-    }
+    objects = {}
+    for _, module in script:GetChildren() do
+        if not module:IsA("ModuleScript") then
+            continue
+        end
+        local name = string.lower(module.Name)
+        if not objects[name] then
+            objects[name] = require(module)
+        end
+    end
     isMain = true
 
     Players.PlayerAdded:Connect(function(player)
