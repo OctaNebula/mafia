@@ -51,9 +51,9 @@ function mapManager.loadMap(mapName)
     for _, closet in closets do
         interactionService.setupPrompt(closet, "Closet")
     end
-    -- for _, door in doors do
-    --     interactionService.setInteractable(door, true)
-    -- end
+    for _, door in doors do
+        interactionService.setupPrompt(door, "Door")
+    end
 
     return map, spawnLocations
 end
