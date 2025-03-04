@@ -45,12 +45,12 @@ function Closet:init()
     self.animator = Instance.new("Animator")
     self.animator.Parent = animationController
 
-    self.closetEnterAnimation = self.animator:LoadAnimation(closetAnimations["Entering Closet"])
+    self.closetEnterAnimation = loadAnimation(self.animator, closetAnimations["Entering Closet"])
     self.closetEnterAnimation.Priority = Enum.AnimationPriority.Action
-    self.closetCheckingIdleAnimation = self.animator:LoadAnimation(closetAnimations["Checking Closet Idle"])
+    self.closetCheckingIdleAnimation = loadAnimation(self.animator, closetAnimations["Checking Closet Idle"])
     self.closetCheckingIdleAnimation.Priority = Enum.AnimationPriority.Idle
     self.closetCheckingIdleAnimation.Looped = true
-    self.closetExitAnimation = self.animator:LoadAnimation(closetAnimations["Exiting Closet"])
+    self.closetExitAnimation = loadAnimation(self.animator, closetAnimations["Exiting Closet"])
     self.closetExitAnimation.Priority = Enum.AnimationPriority.Action
 end
 
@@ -118,7 +118,7 @@ end
 function Closet:interact(player: Player, actionName: string?)
     local character = player.Character
     local hasExclusiveInteraction = self.interactionService.hasExclusiveInteraction(player, self.instance)
-    if not character or self.busy or hasExclusiveInteraction == false then
+    if not character or character:GetAttribute("Downed") or self.busy or hasExclusiveInteraction == false then
         return false
     end
     self.busy = true
