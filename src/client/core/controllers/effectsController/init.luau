@@ -9,16 +9,20 @@ local serviceUtil = require(shared.utilities.serviceUtil)
 local effectsService = serviceUtil.service("effectsService")
 
 local effects = script.effects
+local requiredEffects = {}
 
 local effectsController = {}
 
 function effectsController.start()
+    for _, effect in effects:GetChildren() do
+        requiredEffects[effect.Name] = require(effect)
+    end
     effectsService.playEffect:connect(function(effectToPlay, ...)
-        local effect = effects:FindFirstChild(effectToPlay)
+        local effect = requiredEffects[effectToPlay]
         if not effect then
             return
         end
-        require(effect)(...)
+        effect(...)
     end)
 end
 

@@ -1,5 +1,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ServerStorage = game:GetService("ServerStorage")
 
 local sharedPackages = ReplicatedStorage.sharedPackages
 
@@ -16,11 +18,11 @@ local phaseHandler = require(script.phaseHandler)
 local gameState = require(script.gameState)
 
 local GAME_CONFIG = {
-    GAME_START_TIMER = 3, -- 15
+    GAME_START_TIMER = 1, -- 15
 
     SHOULD_PLAY_INTRO = false,
 
-    NIGHT_START_TIMER = 2, -- 15
+    NIGHT_START_TIMER = 1, -- 15
     MAFIA_KILL_TIMER = 5000, -- 90
     DOCTOR_REVIVE_TIMER = 10, -- unused -- 10
     NIGHT_END_TIMER = 15, -- 15 -- time until the night ends after a mafia kill
@@ -36,8 +38,8 @@ local GAME_CONFIG = {
         DEFAULT = {
             roles = {
                 guaranteed = {
-                    mafia = 2,
-                    doctor = 1
+                    mafia = 1,
+                    doctor = 2
                 },
                 special = {
                     detainer = { maxPlayers = 1, baseChance = 1 },
@@ -66,6 +68,9 @@ local GAME_CONFIG = {
         }
     }
 }
+
+local gameActive = false
+local loopThread
 
 -- misc instance variables that are likely to be moved out of gameService
 
@@ -123,6 +128,14 @@ function gameService.start()
 
     phaseHandler.init(gameService)
 
+    ReplicatedStorage.exe_storage.events.custom_command_events.startGame.OnServerEvent:Connect(function()
+        gameService.startGame()
+    end)
+
+    ReplicatedStorage.exe_storage.events.custom_command_events.endGame.OnServerEvent:Connect(function()
+        gameService.endGame()
+    end)
+
     gameService.setCameraLockedToHead:Connect(function(player, bool)
         gameService.client.cameraLockedToHead:setForClient(player, bool)
     end)
@@ -135,27 +148,27 @@ function gameService.start()
     end)
 
     -- testing code
-    local gameStarted = false
-    local gameLoaded = {}
-    gameService.client.gameLoaded:connect(function(player)
-        if gameLoaded[player.UserId] then
-            return
-        end
-        gameLoaded[player.UserId] = true
-        local allPlayers = Players:GetPlayers()
-        if (#allPlayers >= 3 and not gameStarted) or (player.UserId > 0 and not gameStarted) then
-            gameStarted = true
-            for i = GAME_CONFIG.GAME_START_TIMER, 0, -1 do
-                uiManager.setTopbarText("all", `Game starting in: {i}`, true)
-                task.wait(1)
-            end
-            gameService.client.setTopbarText:fireAllClients()
-            gameService.startGame()
-        end
-    end)
-    Players.PlayerRemoving:Connect(function(player)
-        gameLoaded[player.UserId] = nil
-    end)
+    -- local gameStarted = false
+    -- local gameLoaded = {}
+    -- gameService.client.gameLoaded:connect(function(player)
+    --     if gameLoaded[player.UserId] then
+    --         return
+    --     end
+    --     gameLoaded[player.UserId] = true
+    --     local allPlayers = Players:GetPlayers()
+    --     if (#allPlayers >= 3 and not gameStarted) or (player.UserId > 0 and not gameStarted) then
+    --         gameStarted = true
+    --         for i = GAME_CONFIG.GAME_START_TIMER, 0, -1 do
+    --             uiManager.setTopbarText("all", `Game starting in: {i}`, true)
+    --             task.wait(1)
+    --         end
+    --         gameService.client.setTopbarText:fireAllClients()
+    --         gameService.startGame()
+    --     end
+    -- end)
+    -- Players.PlayerRemoving:Connect(function(player)
+    --     gameLoaded[player.UserId] = nil
+    -- end)
 end
 
 --[[
@@ -368,6 +381,10 @@ todo list:
 ]]
 
 function gameService.startGame()
+    if gameActive then
+        return
+    end
+    gameActive = true
     local participatingPlayers = Players:GetPlayers()
     local currentGameState = gameState.new(gameService, GAME_CONFIG, participatingPlayers)
     uiManager.fade(0)
@@ -385,14 +402,74 @@ function gameService.startGame()
 
     uiManager.fade(1)
 
-    local gamePhases = {"Night", "Day", "Discussion", "Voting"}
-    while true do
-        for _, phase in gamePhases do
-            gameService.client.gamePhase:set(phase)
-            phaseHandler[phase](currentGameState)
+    loopThread = coroutine.create(function()
+        local gamePhases = {"Night", "Day", "Discussion", "Voting"}
+        while true do
+            for _, phase in gamePhases do
+                gameService.client.gamePhase:set(phase)
+                phaseHandler[phase](currentGameState)
+            end
+            currentGameState:incrementCurrentDay()
         end
-        currentGameState:incrementCurrentDay()
+    end)
+    coroutine.resume(loopThread)
+    local connection
+    connection = RunService.Heartbeat:Connect(function()
+        local evilAlive = 0
+        local goodAlive = 0
+        for _, playerInfo in currentGameState.players do
+            if playerInfo.alive then
+                if playerInfo.role == "mafia" then
+                    evilAlive += 1
+                else
+                    goodAlive += 1
+                end
+            end
+        end
+        if evilAlive >= goodAlive then
+            connection:Disconnect()
+            gameService.endGame()
+        end
+    end)
+end
+
+function gameService.endGame()
+    if not gameActive then
+        return
     end
+    coroutine.close(loopThread)
+    uiManager.fade(0)
+    task.wait(1)
+    local allPlayers = Players:GetPlayers()
+    gameService.client.gameStarted:set(false)
+
+    gameService.client.introSkipped:set(false)
+    gameService.client.introSkippedInfo:set({
+        playersSkippedIntro = 0,
+        participatingPlayers = 0,
+    })
+
+    gameService.client.gameStarted:set(false)
+    gameService.client.abilitiesEnabled:set(false)
+    gameService.client.gamePhase:set(nil)
+    gameService.client.talliedVotes:set(nil)
+
+    gameService.client.lightsToggled:removeForClients(allPlayers)
+    gameService.client.chatToggled:removeForClients(allPlayers)
+    gameService.client.firstPersonForced:removeForClients(allPlayers)
+    gameService.client.cameraLockedToHead:removeForClients(allPlayers)
+    gameService.client.canSkipVote:removeForClients(allPlayers)
+    gameService.client.canVote:removeForClients(allPlayers)
+    gameService.client.isDead:removeForClients(allPlayers)
+    gameService.client.spectating:removeForClients(allPlayers)
+
+    mapManager.unloadMap()
+
+    for _, player in allPlayers do
+        player:LoadCharacter()
+    end
+    uiManager.fade(1)
+    gameActive = false
 end
 
 return gameService

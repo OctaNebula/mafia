@@ -31,8 +31,8 @@ function gameController.start()
 
     gameService.lightsToggled:observe(gameController.onLightsToggledUpdate)
     gameService.chatToggled:observe(gameController.onChatToggledUpdate)
-    gameService.firstPersonForced:observe(gameController.onFirstPersonForcedUpdate)
-    gameService.cameraLockedToHead:observe(gameController.onCameraLockedToHead)
+    -- gameService.firstPersonForced:observe(gameController.onFirstPersonForcedUpdate)
+    -- gameService.cameraLockedToHead:observe(gameController.onCameraLockedToHead)
     gameService.talliedVotes:observe(gameController.onTalliedVotes)
 end
 
@@ -175,18 +175,18 @@ function gameController.onChatToggledUpdate(newChatToggled)
     StarterGUI:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, newChatToggled or false)
 end
 
-function gameController.onFirstPersonForcedUpdate(newFirstPersonForced)
-    -- print("New first person forced:", newFirstPersonForced)
-    local currentCamera = workspace.CurrentCamera
-    currentCamera.CameraType = Enum.CameraType.Custom
-    if newFirstPersonForced then
-        LocalPlayer.CameraMode = Enum.CameraMode.LockFirstPerson
-    else
-        LocalPlayer.CameraMode = Enum.CameraMode.Classic
-        LocalPlayer.CameraMaxZoomDistance = 30
-        LocalPlayer.CameraMinZoomDistance = 10
-    end
-end
+-- function gameController.onFirstPersonForcedUpdate(newFirstPersonForced)
+--     -- print("New first person forced:", newFirstPersonForced)
+--     local currentCamera = workspace.CurrentCamera
+--     currentCamera.CameraType = Enum.CameraType.Custom
+--     if newFirstPersonForced then
+--         LocalPlayer.CameraMode = Enum.CameraMode.LockFirstPerson
+--     else
+--         LocalPlayer.CameraMode = Enum.CameraMode.Classic
+--         LocalPlayer.CameraMaxZoomDistance = 30
+--         LocalPlayer.CameraMinZoomDistance = 10
+--     end
+-- end
 
 function gameController.onTalliedVotes(newTalliedVotes, oldTalliedVotes)
     if oldTalliedVotes then
@@ -221,10 +221,10 @@ function gameController.onTalliedVotes(newTalliedVotes, oldTalliedVotes)
     end
 end
 
-function gameController.onCameraLockedToHead(newCameraLockedToHead)
-    if not newCameraLockedToHead then
-        gameController.onFirstPersonForcedUpdate(gameService.firstPersonForced:get())
-    end
-end
+-- function gameController.onCameraLockedToHead(newCameraLockedToHead)
+--     if not newCameraLockedToHead then
+--         gameController.onFirstPersonForcedUpdate(gameService.firstPersonForced:get())
+--     end
+-- end
 
 return gameController

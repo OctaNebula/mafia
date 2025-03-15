@@ -96,7 +96,7 @@ function phaseHandler.Night(gameState)
         task.wait(1)
     end
     uiManager.setTopbarText("all", nil)
-    -- phaseHandler.properties.lightsToggled:set(false)
+    phaseHandler.properties.lightsToggled:set(false)
     phaseHandler.properties.chatToggled:set(false)
     -- pointingService.setCanPointArm:Fire(true)
     -- for _, player in allAlivePlayers do

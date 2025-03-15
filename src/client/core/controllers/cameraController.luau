@@ -9,8 +9,6 @@ local serviceUtil = require(shared.utilities.serviceUtil)
 local pointingService = serviceUtil.service("pointingService")
 local gameService = serviceUtil.service("gameService")
 
-local cameraLockedToHead
-
 local cameraController = {}
 
 function cameraController.start()
@@ -30,15 +28,29 @@ function cameraController.updateBobbleEffect()
 	local mouse = LocalPlayer:GetMouse()
 
 	local camera: Camera = workspace.CurrentCamera
+
+    if camera.CameraType == Enum.CameraType.Orbital then
+        return
+    end
+
     local head = character:FindFirstChild("Head")
     local lockedToHead = gameService.cameraLockedToHead:get()
+    local firstPersonForced = gameService.firstPersonForced:get()
+
+    if firstPersonForced then
+        LocalPlayer.CameraMode = Enum.CameraMode.LockFirstPerson
+    else
+        LocalPlayer.CameraMode = Enum.CameraMode.Classic
+        LocalPlayer.CameraMaxZoomDistance = 30
+        LocalPlayer.CameraMinZoomDistance = 10
+    end
 
 	local currentTime = tick()
     if lockedToHead == true and head then
         humanoid.CameraOffset = Vector3.zero
         camera.CameraType = Enum.CameraType.Scriptable
         camera.CFrame = head.CFrame
-	elseif LocalPlayer.CameraMode == Enum.CameraMode.LockFirstPerson then
+	elseif firstPersonForced then
         camera.CameraType = Enum.CameraType.Custom
 		if humanoid.MoveDirection.Magnitude > 0 then
 			local multiplier = 0.2
@@ -65,7 +77,7 @@ function cameraController.updateBobbleEffect()
 	if head then
         if lockedToHead == false and not humanoid.PlatformStand then -- can change condition to not being dead, so they can 'look around' while downed
             local target
-            if LocalPlayer.CameraMode == Enum.CameraMode.LockFirstPerson then
+            if firstPersonForced then
                 target = character.UpperTorso.CFrame:toObjectSpace(workspace.CurrentCamera.CFrame).lookVector
             else
                 target = character.UpperTorso.CFrame:toObjectSpace(mouse.Hit).lookVector
