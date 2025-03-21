@@ -11,14 +11,14 @@ function roleParser(newPlayersInfo, oldPlayersInfo, callback)
         table.insert(playersToAdd, player)
     end
     if not oldPlayersInfo then
-        return newPlayersInfo, {}
+        return playersToAdd, {}
     end
     for userId, playerInfo in oldPlayersInfo do
         if not callback(userId, playerInfo) then
             continue
         end
         local player = Players:GetPlayerByUserId(userId)
-        if playersToAdd[player] then
+        if table.find(playersToAdd, player) then
             continue
         end
         table.insert(playersToRemove, player)

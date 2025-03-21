@@ -75,7 +75,7 @@ local loopThread
 -- misc instance variables that are likely to be moved out of gameService
 
 local gameService = {
-    playersInfo = network.Server.RemoteProperty.new({}),
+    playersInfo = network.Server.RemoteProperty.new(nil),
     setCameraLockedToHead = Signal.new(),
     vigilanteInterrupt = Signal.new(),
     killPlayer = Signal.new(),
@@ -441,6 +441,7 @@ function gameService.endGame()
     uiManager.fade(0)
     task.wait(1)
     local allPlayers = Players:GetPlayers()
+    gameService.playersInfo:set(nil)
     gameService.client.gameStarted:set(false)
 
     gameService.client.introSkipped:set(false)

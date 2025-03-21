@@ -57,36 +57,40 @@ function mafia.onPlayersInfoChanged(newPlayersInfo, oldPlayersInfo)
     end
     local mafiaMembers = {}
     local witchMembers = {}
-    for userId, playerInfo in newPlayersInfo do
-        if not playerInfo.alive then
-            continue
-        end
-        if playerInfo.role == "mafia" then
-            table.insert(mafiaMembers, userId)
-            local player = Players:GetPlayerByUserId(userId)
-            local character = player.Character
-            if character then
-                mafia.characterAdded(character)
+    if newPlayersInfo then
+        for userId, playerInfo in newPlayersInfo do
+            if not playerInfo.alive then
+                continue
             end
-            if connections[userId] then
-                connections[userId]:Disconnect()
-                connections[userId] = nil
+            if playerInfo.role == "mafia" then
+                table.insert(mafiaMembers, userId)
+                local player = Players:GetPlayerByUserId(userId)
+                local character = player.Character
+                if character then
+                    mafia.characterAdded(character)
+                end
+                if connections[userId] then
+                    connections[userId]:Disconnect()
+                    connections[userId] = nil
+                end
+                connections[userId] = player.CharacterAdded:Connect(mafia.characterAdded)
+            elseif playerInfo.role == "witch" then -- check if the witch is on mafia or civilian side
+                table.insert(witchMembers, userId)
             end
-            connections[userId] = player.CharacterAdded:Connect(mafia.characterAdded)
-        elseif playerInfo.role == "witch" then -- check if the witch is on mafia or civilian side
-            table.insert(witchMembers, userId)
         end
     end
 
-    local playersToAdd, playersToRemove = roleParser(newPlayersInfo, oldPlayersInfo, function(_, playerInfo)
+    local playersToAdd, playersToRemove = roleParser(newPlayersInfo or {}, oldPlayersInfo, function(_, playerInfo)
         return playerInfo.role == "mafia" --or playerInfo.role == "witch"
     end)
+
+    print(playersToAdd, playersToRemove, mafiaMembers, witchMembers)
 
     currentPlayersInTeam = playersToAdd
 
     -- remove for old mafia members
-    mafia.client.teamMembers:removeForClients(playersToRemove)
-    mafia.client.canKill:removeForClients(playersToRemove)
+    mafia.client.teamMembers:setForClients(playersToRemove, nil)
+    mafia.client.canKill:setForClients(playersToRemove, nil)
     mafia.client.teamMembers:setForClients(playersToAdd, {
         mafia = mafiaMembers,
         witches = witchMembers

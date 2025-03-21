@@ -25,6 +25,10 @@ local roleService = {
 
 function roleService.start()
     gameService.playersInfo:observe(function(playersInfo)
+        if not playersInfo then
+            roleService.client.role:setForClients(Players:GetPlayers(), nil)
+            return
+        end
         for userId, playerInfo in playersInfo do
             local player = Players:GetPlayerByUserId(userId)
             roleService.client.role:setForClient(player, playerInfo.role)
