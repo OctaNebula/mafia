@@ -14,7 +14,9 @@ local roleController = {}
 function roleController.start()
     local roleModule
 	roleService.role:observe(function(newRole)
-        -- TODO: disconnect roleModule here
+        if roleModule then
+            roleModule.disconnect()
+        end
         if not newRole then
             return
         end
@@ -22,7 +24,8 @@ function roleController.start()
         if not roleModule then
             return
         end
-        require(roleModule).start()
+        roleModule = require(roleModule)
+        roleModule.start()
     end)
 end
 

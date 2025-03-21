@@ -24,7 +24,7 @@ local killBillboard = assets.killBillboard:Clone()
 
 local mafiaServer = network.client.fromParent("mafia", ReplicatedStorage.RoleNetworks):expect()
 
-local canKillConnection
+local connections = {}
 
 local killDebounce = false
 local targetCharacter
@@ -35,15 +35,15 @@ local mafia = {}
 
 -- should add disconnect function later
 function mafia.start()
-    mafiaServer.nightVisionToggled:observe(mafia.onNightVision)
-    mafiaServer.canKill:observe(mafia.onCanKill)
-    mafiaServer.teamMembers:observe(mafia.onTeamMembersUpdate)
-    ContextActionService:BindActionAtPriority("mafiaKill", mafia.handleMafiaKill, true, 3, Enum.KeyCode.E) -- TODO: custom keybinds!
-    CollectionService:GetInstanceAddedSignal("MafiaHighlighted"):Connect(function(object)
+    connections.nightVision = mafiaServer.nightVisionToggled:observe(mafia.onNightVision)
+    connections.onCanKill = mafiaServer.canKill:observe(mafia.onCanKill)
+    connections.teamMembers = mafiaServer.teamMembers:observe(mafia.onTeamMembersUpdate)
+    connections.input = ContextActionService:BindActionAtPriority("mafiaKill", mafia.handleMafiaKill, true, 3, Enum.KeyCode.E) -- TODO: custom keybinds!
+    connections.mafiaHighlightAdded = CollectionService:GetInstanceAddedSignal("MafiaHighlighted"):Connect(function(object)
         local highlight = revealHighlight:Clone()
         highlight.Parent = object
     end)
-    CollectionService:GetInstanceRemovedSignal("MafiaHighlighted"):Connect(function(object)
+    connections.mafiaHighlightRemoved = CollectionService:GetInstanceRemovedSignal("MafiaHighlighted"):Connect(function(object)
         local highlight = object:FindFirstChild("revealHighlight")
         if highlight then
             highlight:Destroy()
@@ -83,8 +83,8 @@ function mafia.setTargetCharacter(character, textToAdd)
 end
 
 function mafia.onCanKill(canKill)
-    if canKill and not canKillConnection then
-        canKillConnection = RunService.RenderStepped:Connect(function()
+    if canKill and not connections.canKill then
+        connections.canKill = RunService.RenderStepped:Connect(function()
             if killDebounce then
                 mafia.setTargetCharacter(nil)
                 return
@@ -153,9 +153,9 @@ function mafia.onCanKill(canKill)
             end
             mafia.setTargetCharacter(character, if magnitude > 7 then "shoot" else "stab")
         end)
-    elseif not canKill and canKillConnection then
-        canKillConnection:Disconnect()
-        canKillConnection = nil
+    elseif not canKill and connections.canKill then
+        connections.canKill:Disconnect()
+        connections.canKill = nil
         mafia.setTargetCharacter(nil)
     end
 end
@@ -195,6 +195,22 @@ function mafia.onTeamMembersUpdate(teamMembers)
     end
 end
 
--- add a disconnect function to clean up connections
+function mafia.disconnect()
+    for _, connection in connections do
+        connection:Disconnect()
+        connection = nil
+    end
+    mafia.onNightVision(false)
+    for _, player in Players:GetPlayers() do
+        local character = player.Character
+        if not character then
+            continue
+        end
+        local characterMafiaHighlight = character:FindFirstChild("mafiaHighlight")
+        if characterMafiaHighlight then
+            characterMafiaHighlight:Destroy()
+        end
+    end
+end
 
 return mafia
