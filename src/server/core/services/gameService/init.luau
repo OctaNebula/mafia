@@ -390,7 +390,7 @@ function gameService.startGame()
     uiManager.fade(0)
     task.wait(1)
     currentGameState:assignRoles()
-    local _, spawnLocations = mapManager.loadMap("Testing")
+    local _, spawnLocations = mapManager.loadMap(if RunService:IsStudio() then "Testing" else "Motel")
     currentGameState:registerSpawnLocations(spawnLocations)
     mapManager.waitForPlayersAsync(participatingPlayers)
 
