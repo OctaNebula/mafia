@@ -40,6 +40,7 @@ function phaseHandler.init(gameService)
     phaseHandler.properties.talliedVotes = gameService.client.talliedVotes
     phaseHandler.properties.chatToggled = gameService.client.chatToggled
     phaseHandler.properties.playersInfo = gameService.client.playersInfo
+    phaseHandler.properties.gameStarted = gameService.client.gameStarted
     phaseHandler.properties.spectating = gameService.client.spectating
     phaseHandler.properties.isDead = gameService.client.isDead
 
@@ -121,7 +122,7 @@ function phaseHandler.Night(gameState)
         end
         uiManager.setTopbarText(allMafia, nil)
         phaseFinished:Fire()
-    end)
+    end, phaseHandler.properties.gameStarted)
 
     -- could probably get refactored
     local killPlayerConnection = phaseHandler.events.killPlayer:Connect(function(killer, victim, reason)
@@ -159,7 +160,7 @@ function phaseHandler.Night(gameState)
                 end, function()
                     uiManager.setTopbarText(allMafia, nil)
                     phaseFinished:Fire()
-                end)
+                end, phaseHandler.properties.gameStarted)
             end
         else
             print("Role other than mafia tried killing someone")
@@ -289,7 +290,7 @@ function phaseHandler.Discussion(gameState)
                 return
             end
             discussionFinished = true
-        end)
+        end, phaseHandler.properties.gameStarted)
 
         local vigilanteInterruptConnection
         vigilanteInterruptConnection = phaseHandler.events.vigilanteInterrupt:Connect(function(player)
@@ -375,7 +376,7 @@ function phaseHandler.Voting(gameState)
     end, function(cancelled)
         uiManager.setTopbarText("all", nil)
         votingPhaseFinished:Fire(cancelled or false)
-    end)
+    end, phaseHandler.properties.gameStarted)
 
     voteSkippedEvent.Event:Connect(votingCountdownCancel)
 
