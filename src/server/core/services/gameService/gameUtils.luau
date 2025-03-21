@@ -2,13 +2,14 @@ local Players = game:GetService("Players")
 
 local gameUtils = {}
 
-function gameUtils.countdownCoroutineInit(seconds, increment, callback, cleanup)
+function gameUtils.countdownCoroutineInit(seconds, increment, callback, cleanup, propertyCheck)
     local currentSecond
     local coro = coroutine.create(function()
         for i = seconds, 0, -increment do
             currentSecond = i
+            if not propertyCheck:get() then break end
             if callback then task.spawn(callback, i) end
-            task.wait(1)
+            task.wait(increment)
         end
         if cleanup then cleanup(false) end
     end)
